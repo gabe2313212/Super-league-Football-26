@@ -32,7 +32,7 @@ const GAME_STATE = {
         collection: [],
         lineup: [],
         points: 0,
-        coins: 0,
+        coins: 500,
         difficulty: "easy",
         season: 1,
         matchNumber: 1,
@@ -43,38 +43,516 @@ const GAME_STATE = {
     },
 
     collectionFilter: "all",
-
     currentMatch: null
 };
 
 
 /* =========================================================
-   INITIALISATION
+   CONFIG SAFETY
    ========================================================= */
 
-document.addEventListener("DOMContentLoaded", function () {
+(function setupConfig() {
+
+    window.GAME_CONFIG = window.GAME_CONFIG || {};
+
+    const config = window.GAME_CONFIG;
+
+    config.LEAGUES = config.LEAGUES || {
+        PREMIER_LEAGUE:
+            config.leagues?.premierLeague ||
+            "Premier League",
+
+        LALIGA:
+            config.leagues?.laLiga ||
+            "LaLiga"
+    };
+
+    config.PREMIER_LEAGUE_CLUBS =
+        Array.isArray(config.PREMIER_LEAGUE_CLUBS)
+            ? config.PREMIER_LEAGUE_CLUBS
+            : (
+                Array.isArray(config.premierLeagueClubs)
+                    ? config.premierLeagueClubs
+                    : []
+            );
+
+    config.LALIGA_CLUBS =
+        Array.isArray(config.LALIGA_CLUBS)
+            ? config.LALIGA_CLUBS
+            : (
+                Array.isArray(config.laLigaClubs)
+                    ? config.laLigaClubs
+                    : []
+            );
+
+    config.SEASON = config.SEASON || {};
+
+    config.SEASON.MATCHES =
+        Number(config.SEASON.MATCHES) ||
+        Number(config.seasonLength) ||
+        19;
+
+    config.BUILD_ROSTER =
+        config.BUILD_ROSTER || {};
+
+    config.BUILD_ROSTER.REQUIRED_PLAYERS =
+        Number(config.BUILD_ROSTER.REQUIRED_PLAYERS) ||
+        Number(config.buildRosterPlayersRequired) ||
+        6;
+
+    config.SUPER_SQUAD =
+        config.SUPER_SQUAD || {};
+
+    config.SUPER_SQUAD.REQUIRED_PLAYERS =
+        Number(config.SUPER_SQUAD.REQUIRED_PLAYERS) ||
+        Number(config.superSquadPlayersRequired) ||
+        11;
+
+    config.SUPER_SQUAD.DIFFICULTY =
+        config.SUPER_SQUAD.DIFFICULTY || {};
+
+    config.SUPER_SQUAD.DIFFICULTY.EASY =
+        config.SUPER_SQUAD.DIFFICULTY.EASY || {
+            MIN_OPPONENT_RATING:
+                config.opponentRatingRanges?.easy?.[0] ?? 72,
+
+            MAX_OPPONENT_RATING:
+                config.opponentRatingRanges?.easy?.[1] ?? 84
+        };
+
+    config.SUPER_SQUAD.DIFFICULTY.HARD =
+        config.SUPER_SQUAD.DIFFICULTY.HARD || {
+            MIN_OPPONENT_RATING:
+                config.opponentRatingRanges?.hard?.[0] ?? 82,
+
+            MAX_OPPONENT_RATING:
+                config.opponentRatingRanges?.hard?.[1] ?? 95
+        };
+
+    config.PACKS = config.PACKS || {};
+
+    config.PACKS.BRONZE =
+        config.PACKS.BRONZE || {
+            NAME: "Bronze Pack",
+            COST: Number(config.packCosts?.bronze) || 50
+        };
+
+    config.PACKS.GOLD =
+        config.PACKS.GOLD || {
+            NAME: "Gold Pack",
+            COST: Number(config.packCosts?.gold) || 100
+        };
+
+    config.PACKS.ICON =
+        config.PACKS.ICON || {
+            NAME: "Icon Pack",
+            COST: Number(config.packCosts?.icon) || 1000
+        };
+
+    config.STORAGE_KEYS =
+        config.STORAGE_KEYS || {};
+
+    config.STORAGE_KEYS.BUILD_ROSTER =
+        config.STORAGE_KEYS.BUILD_ROSTER ||
+        config.storageKeys?.buildRoster ||
+        "buildRoster_gameState";
+
+    config.STORAGE_KEYS.SUPER_SQUAD =
+        config.STORAGE_KEYS.SUPER_SQUAD ||
+        config.storageKeys?.superSquad ||
+        "superSquad_gameState";
+
+    if (!Array.isArray(config.clubs)) {
+        config.clubs =
+            config.PREMIER_LEAGUE_CLUBS.concat(
+                config.LALIGA_CLUBS
+            );
+    }
+
+})();
+
+
+/* =========================================================
+   DOM HELPERS
+   ========================================================= */
+
+function getElement(id) {
+    return document.getElementById(id);
+}
+
+
+function setText(id, value) {
+
+    const element = getElement(id);
+
+    if (element) {
+        element.textContent =
+            value === undefined ||
+            value === null
+                ? ""
+                : String(value);
+    }
+}
+
+
+function showElement(id) {
+
+    const element = getElement(id);
+
+    if (element) {
+        element.hidden = false;
+    }
+}
+
+
+function hideElement(id) {
+
+    const element = getElement(id);
+
+    if (element) {
+        element.hidden = true;
+    }
+}
+
+
+function bindClick(id, callback) {
+
+    const element = getElement(id);
+
+    if (!element) {
+        console.warn(
+            "Super League Soccer: missing element:",
+            id
+        );
+        return;
+    }
+
+    element.addEventListener(
+        "click",
+        function (event) {
+
+            try {
+                callback(event);
+            } catch (error) {
+
+                console.error(
+                    "Button error:",
+                    error
+                );
+
+                if (
+                    typeof showNotification ===
+                    "function"
+                ) {
+                    showNotification(
+                        "Something went wrong. Please try again.",
+                        "error"
+                    );
+                }
+            }
+        }
+    );
+}
+
+
+/* =========================================================
+   SCREEN MANAGEMENT
+   ========================================================= */
+
+function showScreen(screenName) {
+
+    const screens =
+        document.querySelectorAll(".screen");
+
+    screens.forEach(function (screen) {
+        screen.hidden = true;
+    });
+
+    const target =
+        getElement(screenName + "Screen");
+
+    if (!target) {
+
+        console.error(
+            "Super League Soccer: screen not found:",
+            screenName
+        );
+
+        return;
+    }
+
+    target.hidden = false;
+
+    GAME_STATE.currentScreen =
+        screenName;
+
+    updateAllUI();
+
+    window.scrollTo({
+        top: 0,
+        behavior: "smooth"
+    });
+}
+
+
+/* =========================================================
+   STORAGE
+   ========================================================= */
+
+function saveAllGameData() {
 
     try {
-        loadAllGameData();
-        setupEventListeners();
-        updateAllUI();
-        showScreen("mainMenu");
 
-        console.log("Super League Soccer loaded successfully.");
+        saveToStorage(
+            GAME_CONFIG.STORAGE_KEYS.BUILD_ROSTER,
+            GAME_STATE.buildRoster
+        );
+
+        saveToStorage(
+            GAME_CONFIG.STORAGE_KEYS.SUPER_SQUAD,
+            GAME_STATE.superSquad
+        );
 
     } catch (error) {
 
         console.error(
-            "Game initialisation error:",
+            "Save error:",
             error
         );
+    }
+}
 
-        showNotification(
-            "The game encountered a loading error.",
-            "error"
+
+function loadAllGameData() {
+
+    try {
+
+        const roster =
+            loadFromStorage(
+                GAME_CONFIG.STORAGE_KEYS.BUILD_ROSTER
+            );
+
+        const squad =
+            loadFromStorage(
+                GAME_CONFIG.STORAGE_KEYS.SUPER_SQUAD
+            );
+
+        if (roster && typeof roster === "object") {
+            GAME_STATE.buildRoster =
+                sanitizeRosterState(roster);
+        }
+
+        if (squad && typeof squad === "object") {
+            GAME_STATE.superSquad =
+                sanitizeSquadState(squad);
+        }
+
+    } catch (error) {
+
+        console.error(
+            "Load error:",
+            error
         );
     }
-});
+}
+
+
+function sanitizeRosterState(data) {
+
+    const state = {
+        league:
+            typeof data.league === "string"
+                ? data.league
+                : "",
+
+        club:
+            typeof data.club === "string"
+                ? data.club
+                : "",
+
+        players:
+            Array.isArray(data.players)
+                ? data.players.filter(isValidPlayer)
+                : [],
+
+        season:
+            Math.max(
+                1,
+                safeInteger(data.season, 1)
+            ),
+
+        matchNumber:
+            Math.max(
+                1,
+                safeInteger(data.matchNumber, 1)
+            ),
+
+        points:
+            Math.max(
+                0,
+                safeInteger(data.points, 0)
+            ),
+
+        wins:
+            Math.max(
+                0,
+                safeInteger(data.wins, 0)
+            ),
+
+        draws:
+            Math.max(
+                0,
+                safeInteger(data.draws, 0)
+            ),
+
+        losses:
+            Math.max(
+                0,
+                safeInteger(data.losses, 0)
+            ),
+
+        history:
+            Array.isArray(data.history)
+                ? data.history.slice(0, GAME_CONFIG.SEASON.MATCHES)
+                : []
+    };
+
+    return state;
+}
+
+
+function sanitizeSquadState(data) {
+
+    const collection =
+        Array.isArray(data.collection)
+            ? data.collection.filter(isValidPlayer)
+            : [];
+
+    const collectionIds =
+        new Set(
+            collection.map(function (player) {
+                return player.id;
+            })
+        );
+
+    const lineup =
+        Array.isArray(data.lineup)
+            ? data.lineup
+                .filter(function (id) {
+                    return collectionIds.has(id);
+                })
+                .slice(
+                    0,
+                    GAME_CONFIG.SUPER_SQUAD.REQUIRED_PLAYERS
+                )
+            : [];
+
+    return {
+
+        teamName:
+            typeof data.teamName === "string"
+                ? data.teamName
+                : "",
+
+        collection:
+            uniqueById(collection),
+
+        lineup:
+            [...new Set(lineup)],
+
+        points:
+            Math.max(
+                0,
+                safeInteger(data.points, 0)
+            ),
+
+        coins:
+            Math.max(
+                0,
+                safeInteger(data.coins, 500)
+            ),
+
+        difficulty:
+            data.difficulty === "hard"
+                ? "hard"
+                : "easy",
+
+        season:
+            Math.max(
+                1,
+                safeInteger(data.season, 1)
+            ),
+
+        matchNumber:
+            Math.max(
+                1,
+                safeInteger(data.matchNumber, 1)
+            ),
+
+        wins:
+            Math.max(
+                0,
+                safeInteger(data.wins, 0)
+            ),
+
+        draws:
+            Math.max(
+                0,
+                safeInteger(data.draws, 0)
+            ),
+
+        losses:
+            Math.max(
+                0,
+                safeInteger(data.losses, 0)
+            ),
+
+        history:
+            Array.isArray(data.history)
+                ? data.history.slice(0, GAME_CONFIG.SEASON.MATCHES)
+                : []
+    };
+}
+
+
+/* =========================================================
+   INITIALISE
+   ========================================================= */
+
+document.addEventListener(
+    "DOMContentLoaded",
+    function () {
+
+        try {
+
+            loadAllGameData();
+            setupEventListeners();
+            updateAllUI();
+            showScreen("mainMenu");
+
+            console.log(
+                "Super League Soccer loaded successfully."
+            );
+
+        } catch (error) {
+
+            console.error(
+                "Game startup error:",
+                error
+            );
+
+            if (
+                typeof showNotification ===
+                "function"
+            ) {
+                showNotification(
+                    "There was a problem loading the game.",
+                    "error"
+                );
+            }
+        }
+    }
+);
 
 
 /* =========================================================
@@ -83,26 +561,38 @@ document.addEventListener("DOMContentLoaded", function () {
 
 function setupEventListeners() {
 
-    // Main menu
-    bindClick("buildRosterButton", function () {
-        showScreen("buildRoster");
-    });
+    bindClick(
+        "buildRosterButton",
+        function () {
+            showScreen("buildRoster");
+        }
+    );
 
-    bindClick("superSquadButton", function () {
-        showScreen("superSquad");
-    });
+    bindClick(
+        "superSquadButton",
+        function () {
+            showScreen("superSquad");
+        }
+    );
 
-    bindClick("collectionButton", function () {
-        renderCollection();
-        showScreen("collection");
-    });
+    bindClick(
+        "collectionButton",
+        function () {
+            renderCollection();
+            showScreen("collection");
+        }
+    );
 
-    bindClick("settingsButton", function () {
-        showScreen("settings");
-    });
+    bindClick(
+        "settingsButton",
+        function () {
+            showScreen("settings");
+        }
+    );
 
 
-    // Build a Roster
+    /* Build Roster */
+
     bindClick(
         "buildPremierLeagueButton",
         function () {
@@ -121,7 +611,10 @@ function setupEventListeners() {
         }
     );
 
-    bindClick("loadClubButton", loadBuildClub);
+    bindClick(
+        "loadClubButton",
+        loadBuildClub
+    );
 
     bindClick(
         "startRosterSeasonButton",
@@ -139,7 +632,8 @@ function setupEventListeners() {
     );
 
 
-    // Super Squad
+    /* Super Squad */
+
     bindClick(
         "createTeamButton",
         createSuperSquad
@@ -186,7 +680,8 @@ function setupEventListeners() {
     );
 
 
-    // Collection
+    /* Collection */
+
     bindClick(
         "collectionAllButton",
         function () {
@@ -216,10 +711,12 @@ function setupEventListeners() {
     );
 
 
-    // Match
+    /* Match */
+
     bindClick(
         "matchBackButton",
         function () {
+
             if (GAME_STATE.currentMatch) {
                 showScreen(
                     GAME_STATE.currentMatch.returnScreen
@@ -236,7 +733,8 @@ function setupEventListeners() {
     );
 
 
-    // Presentation
+    /* Presentation */
+
     bindClick(
         "newSeasonButton",
         startNewSeason
@@ -250,10 +748,12 @@ function setupEventListeners() {
     );
 
 
-    // Settings
+    /* Settings */
+
     bindClick(
         "saveGameButton",
         function () {
+
             saveAllGameData();
 
             showNotification(
@@ -269,7 +769,8 @@ function setupEventListeners() {
     );
 
 
-    // Modal
+    /* Modal */
+
     bindClick(
         "closeModalButton",
         closeModal
@@ -284,10 +785,11 @@ function setupEventListeners() {
             "click",
             function (event) {
 
-                if (event.target === modal) {
+                if (
+                    event.target === modal
+                ) {
                     closeModal();
                 }
-
             }
         );
     }
@@ -295,410 +797,10 @@ function setupEventListeners() {
 
 
 /* =========================================================
-   SAFE EVENT BINDING
-   ========================================================= */
-
-function bindClick(id, callback) {
-
-    const element = getElement(id);
-
-    if (!element) {
-        console.warn(
-            "Missing HTML element:",
-            id
-        );
-        return;
-    }
-
-    element.addEventListener(
-        "click",
-        function (event) {
-
-            try {
-                callback(event);
-
-            } catch (error) {
-
-                console.error(
-                    "Button error:",
-                    error
-                );
-
-                showNotification(
-                    "Something went wrong. Please try again.",
-                    "error"
-                );
-            }
-
-        }
-    );
-}
-
-
-/* =========================================================
-   SCREEN MANAGEMENT
-   ========================================================= */
-
-function showScreen(screenName) {
-
-    const screens =
-        document.querySelectorAll(".screen");
-
-    screens.forEach(function (screen) {
-        screen.hidden = true;
-    });
-
-
-    const target =
-        getElement(screenName + "Screen");
-
-    if (!target) {
-
-        console.warn(
-            "Screen not found:",
-            screenName
-        );
-
-        return;
-    }
-
-    target.hidden = false;
-
-    GAME_STATE.currentScreen =
-        screenName;
-
-    window.scrollTo({
-        top: 0,
-        behavior: "smooth"
-    });
-
-
-    updateAllUI();
-}
-
-
-/* =========================================================
-   LOAD SAVED DATA
-   ========================================================= */
-
-function loadAllGameData() {
-
-    const buildSaved =
-        loadFromStorage(
-            GAME_CONFIG.STORAGE_KEYS.BUILD_ROSTER
-        );
-
-    const squadSaved =
-        loadFromStorage(
-            GAME_CONFIG.STORAGE_KEYS.SUPER_SQUAD
-        );
-
-
-    if (
-        buildSaved &&
-        typeof buildSaved === "object"
-    ) {
-        GAME_STATE.buildRoster =
-            sanitiseBuildRosterState(
-                buildSaved
-            );
-    }
-
-
-    if (
-        squadSaved &&
-        typeof squadSaved === "object"
-    ) {
-        GAME_STATE.superSquad =
-            sanitiseSuperSquadState(
-                squadSaved
-            );
-    }
-}
-
-
-/* =========================================================
-   SAVE ALL DATA
-   ========================================================= */
-
-function saveAllGameData() {
-
-    saveToStorage(
-        GAME_CONFIG.STORAGE_KEYS.BUILD_ROSTER,
-        GAME_STATE.buildRoster
-    );
-
-    saveToStorage(
-        GAME_CONFIG.STORAGE_KEYS.SUPER_SQUAD,
-        GAME_STATE.superSquad
-    );
-}
-
-
-/* =========================================================
-   BUILD ROSTER STATE SANITISATION
-   ========================================================= */
-
-function sanitiseBuildRosterState(state) {
-
-    const safe = {
-        league: "",
-        club: "",
-        players: [],
-        season: 1,
-        matchNumber: 1,
-        points: 0,
-        wins: 0,
-        draws: 0,
-        losses: 0,
-        history: []
-    };
-
-
-    safe.league =
-        cleanText(
-            state.league,
-            100
-        );
-
-    safe.club =
-        cleanText(
-            state.club,
-            100
-        );
-
-
-    if (Array.isArray(state.players)) {
-
-        safe.players =
-            state.players
-                .map(sanitizePlayer)
-                .filter(Boolean)
-                .slice(
-                    0,
-                    GAME_CONFIG.BUILD_ROSTER.REQUIRED_PLAYERS
-                );
-    }
-
-
-    safe.season =
-        clamp(
-            safeInteger(state.season, 1),
-            1,
-            999999
-        );
-
-    safe.matchNumber =
-        clamp(
-            safeInteger(state.matchNumber, 1),
-            1,
-            GAME_CONFIG.SEASON.MATCHES + 1
-        );
-
-    safe.points =
-        Math.max(
-            0,
-            safeInteger(state.points, 0)
-        );
-
-    safe.wins =
-        Math.max(
-            0,
-            safeInteger(state.wins, 0)
-        );
-
-    safe.draws =
-        Math.max(
-            0,
-            safeInteger(state.draws, 0)
-        );
-
-    safe.losses =
-        Math.max(
-            0,
-            safeInteger(state.losses, 0)
-        );
-
-
-    if (Array.isArray(state.history)) {
-
-        safe.history =
-            state.history
-                .filter(function (match) {
-                    return match &&
-                        typeof match === "object";
-                })
-                .slice(
-                    0,
-                    GAME_CONFIG.SEASON.MATCHES
-                );
-    }
-
-
-    return safe;
-}
-
-
-/* =========================================================
-   SUPER SQUAD STATE SANITISATION
-   ========================================================= */
-
-function sanitiseSuperSquadState(state) {
-
-    const safe = {
-        teamName: "",
-        collection: [],
-        lineup: [],
-        points: 0,
-        coins: 0,
-        difficulty: "easy",
-        season: 1,
-        matchNumber: 1,
-        wins: 0,
-        draws: 0,
-        losses: 0,
-        history: []
-    };
-
-
-    const teamValidation =
-        validateTeamName(
-            state.teamName || ""
-        );
-
-    if (teamValidation.valid) {
-        safe.teamName =
-            teamValidation.name;
-    }
-
-
-    if (Array.isArray(state.collection)) {
-
-        safe.collection =
-            uniqueById(
-                state.collection
-                    .map(sanitizePlayer)
-                    .filter(Boolean)
-            );
-    }
-
-
-    if (Array.isArray(state.lineup)) {
-
-        safe.lineup =
-            state.lineup
-                .map(function (id) {
-                    return cleanText(id, 100);
-                })
-                .filter(Boolean)
-                .filter(function (id) {
-
-                    return Boolean(
-                        findPlayerById(
-                            safe.collection,
-                            id
-                        )
-                    );
-
-                })
-                .slice(
-                    0,
-                    GAME_CONFIG.SUPER_SQUAD.REQUIRED_PLAYERS
-                );
-    }
-
-
-    safe.points =
-        Math.max(
-            0,
-            safeInteger(state.points, 0)
-        );
-
-    safe.coins =
-        Math.max(
-            0,
-            safeInteger(state.coins, 0)
-        );
-
-
-    safe.difficulty =
-        state.difficulty === "hard"
-            ? "hard"
-            : "easy";
-
-
-    safe.season =
-        clamp(
-            safeInteger(state.season, 1),
-            1,
-            999999
-        );
-
-
-    safe.matchNumber =
-        clamp(
-            safeInteger(state.matchNumber, 1),
-            1,
-            GAME_CONFIG.SEASON.MATCHES + 1
-        );
-
-
-    safe.wins =
-        Math.max(
-            0,
-            safeInteger(state.wins, 0)
-        );
-
-    safe.draws =
-        Math.max(
-            0,
-            safeInteger(state.draws, 0)
-        );
-
-    safe.losses =
-        Math.max(
-            0,
-            safeInteger(state.losses, 0)
-        );
-
-
-    if (Array.isArray(state.history)) {
-
-        safe.history =
-            state.history
-                .filter(function (match) {
-                    return match &&
-                        typeof match === "object";
-                })
-                .slice(
-                    0,
-                    GAME_CONFIG.SEASON.MATCHES
-                );
-    }
-
-
-    return safe;
-}
-
-
-/* =========================================================
-   BUILD ROSTER — LEAGUE
+   BUILD A ROSTER
    ========================================================= */
 
 function selectBuildLeague(league) {
-
-    if (
-        league !== GAME_CONFIG.LEAGUES.PREMIER_LEAGUE &&
-        league !== GAME_CONFIG.LEAGUES.LALIGA
-    ) {
-        showNotification(
-            "Invalid league selected.",
-            "error"
-        );
-
-        return;
-    }
-
 
     GAME_STATE.buildRoster.league =
         league;
@@ -709,32 +811,21 @@ function selectBuildLeague(league) {
     GAME_STATE.buildRoster.players =
         [];
 
-
-    const clubSelect =
+    const select =
         getElement("clubSelect");
 
-    if (!clubSelect) {
+    if (!select) {
         return;
     }
 
-
-    let clubs = [];
-
-    if (
-        league ===
-        GAME_CONFIG.LEAGUES.PREMIER_LEAGUE
-    ) {
-        clubs =
-            GAME_CONFIG.PREMIER_LEAGUE_CLUBS;
-    } else {
-        clubs =
-            GAME_CONFIG.LALIGA_CLUBS;
-    }
-
-
-    clubSelect.innerHTML =
+    select.innerHTML =
         '<option value="">Select a club</option>';
 
+    const clubs =
+        league ===
+        GAME_CONFIG.LEAGUES.PREMIER_LEAGUE
+            ? GAME_CONFIG.PREMIER_LEAGUE_CLUBS
+            : GAME_CONFIG.LALIGA_CLUBS;
 
     clubs.forEach(function (club) {
 
@@ -744,48 +835,39 @@ function selectBuildLeague(league) {
         option.value = club;
         option.textContent = club;
 
-        clubSelect.appendChild(option);
+        select.appendChild(option);
     });
 
-
     showElement("buildClubPanel");
-    hideElement("rosterPlayerPanel");
 
     renderRosterPlayers();
+    updateRosterUI();
+
+    saveAllGameData();
 }
 
 
-/* =========================================================
-   BUILD ROSTER — CLUB
-   ========================================================= */
+function loadBuildClub() {
 
-async function loadBuildClub() {
-
-    const clubSelect =
+    const select =
         getElement("clubSelect");
 
-    if (!clubSelect) {
+    if (!select) {
         return;
     }
 
-
     const club =
-        cleanText(
-            clubSelect.value,
-            100
-        );
-
+        cleanText(select.value);
 
     if (!club) {
 
         showNotification(
-            "Please select a club.",
+            "Please choose a club first.",
             "error"
         );
 
         return;
     }
-
 
     GAME_STATE.buildRoster.club =
         club;
@@ -793,162 +875,12 @@ async function loadBuildClub() {
     GAME_STATE.buildRoster.players =
         [];
 
-
-    showNotification(
-        "Loading " + club + " players...",
-        "info"
-    );
-
-
-    try {
-
-        let players =
-            await getPlayersByClub(club);
-
-
-        /*
-         * If the fallback database doesn't have enough
-         * players, create safe generated players so the
-         * selection screen can still function.
-         */
-
-        if (players.length < 6) {
-
-            players =
-                createFallbackClubPlayers(
-                    club,
-                    players
-                );
-        }
-
-
-        renderRosterPlayers(players);
-
-        showElement("rosterPlayerPanel");
-
-
-        showNotification(
-            club + " loaded.",
-            "success"
-        );
-
-
-    } catch (error) {
-
-        console.error(
-            "Unable to load club:",
-            error
-        );
-
-
-        const players =
-            createFallbackClubPlayers(
-                club,
-                []
-            );
-
-
-        renderRosterPlayers(players);
-        showElement("rosterPlayerPanel");
-
-
-        showNotification(
-            "Using backup player data.",
-            "info"
-        );
-    }
+    renderRosterPlayers();
+    updateRosterUI();
 }
 
 
-/* =========================================================
-   CREATE FALLBACK CLUB PLAYERS
-   ========================================================= */
-
-function createFallbackClubPlayers(
-    club,
-    existingPlayers
-) {
-
-    const players =
-        Array.isArray(existingPlayers)
-            ? existingPlayers.map(sanitizePlayer)
-                .filter(Boolean)
-            : [];
-
-
-    const positions = [
-        "GK",
-        "RB",
-        "CB",
-        "CB",
-        "LB",
-        "CM",
-        "CM",
-        "CAM",
-        "RW",
-        "LW",
-        "ST",
-        "ST"
-    ];
-
-
-    const result = [
-        ...players
-    ];
-
-
-    let index = 0;
-
-
-    while (result.length < 12) {
-
-        const position =
-            positions[index % positions.length];
-
-        const player = {
-            id:
-                "generated_" +
-                club.toLowerCase()
-                    .replace(/[^a-z0-9]+/g, "_") +
-                "_" +
-                index,
-
-            name:
-                club +
-                " Player " +
-                (index + 1),
-
-            position,
-
-            rating:
-                randomInt(70, 84),
-
-            club,
-
-            rarity:
-                randomInt(1, 100) <= 25
-                    ? "Rare"
-                    : "Common"
-        };
-
-
-        result.push(
-            sanitizePlayer(player)
-        );
-
-        index++;
-    }
-
-
-    return uniqueById(result);
-}
-
-
-/* =========================================================
-   RENDER BUILD ROSTER PLAYERS
-   ========================================================= */
-
-function renderRosterPlayers(players) {
+function renderRosterPlayers() {
 
     const container =
         getElement("rosterPlayers");
@@ -957,69 +889,42 @@ function renderRosterPlayers(players) {
         return;
     }
 
+    container.innerHTML = "";
 
-    /*
-     * If players aren't provided, try loading them
-     * from the selected club.
-     */
+    const state =
+        GAME_STATE.buildRoster;
 
-    if (!Array.isArray(players)) {
+    if (!state.club) {
 
-        const club =
-            GAME_STATE.buildRoster.club;
-
-        if (!club) {
-            container.innerHTML = "";
-            updateRosterCount();
-            return;
-        }
-
-        getPlayersByClub(club)
-            .then(function (loadedPlayers) {
-
-                if (
-                    loadedPlayers.length < 6
-                ) {
-
-                    loadedPlayers =
-                        createFallbackClubPlayers(
-                            club,
-                            loadedPlayers
-                        );
-                }
-
-                renderRosterPlayers(
-                    loadedPlayers
-                );
-
-            })
-            .catch(function () {
-
-                renderRosterPlayers(
-                    createFallbackClubPlayers(
-                        club,
-                        []
-                    )
-                );
-
-            });
+        container.innerHTML =
+            "<p>Choose a club to see its players.</p>";
 
         return;
     }
 
+    let players =
+        getPlayersByClub(state.club);
 
-    container.innerHTML = "";
+    if (!Array.isArray(players)) {
+        players = [];
+    }
 
+    if (players.length === 0) {
 
-    const safePlayers =
-        uniqueById(
-            players
-                .map(sanitizePlayer)
-                .filter(Boolean)
-        );
+        container.innerHTML =
+            "<p>No players found for this club.</p>";
 
+        return;
+    }
 
-    safePlayers.forEach(function (player) {
+    players.forEach(function (player) {
+
+        const selected =
+            state.players.some(
+                function (item) {
+                    return item.id === player.id;
+                }
+            );
 
         const card =
             document.createElement("button");
@@ -1027,107 +932,54 @@ function renderRosterPlayers(players) {
         card.type = "button";
 
         card.className =
-            "player-card";
-
-
-        const selected =
-            GAME_STATE.buildRoster.players
-                .some(function (selectedPlayer) {
-
-                    return (
-                        selectedPlayer.id ===
-                        player.id
-                    );
-
-                });
-
-
-        if (selected) {
-            card.classList.add("selected");
-        }
-
+            "player-card" +
+            (selected ? " selected" : "");
 
         card.innerHTML = `
-            <span class="player-card-name">
-                ${escapeHTML(player.name)}
-            </span>
-
-            <span class="player-card-position">
-                ${escapeHTML(player.position)}
-            </span>
-
-            <span class="player-card-rating">
-                ${player.rating}
-            </span>
-
-            <span class="player-card-club">
-                ${escapeHTML(player.club)}
-            </span>
-
-            <span class="player-card-rarity rarity-${String(
-                player.rarity
-            ).toLowerCase()}">
-                ${escapeHTML(player.rarity)}
-            </span>
+            <strong>${escapeHTML(player.name)}</strong>
+            <span>${escapeHTML(player.position)}</span>
+            <span>Rating: ${player.rating}</span>
+            <span>${escapeHTML(player.club)}</span>
         `;
-
 
         card.addEventListener(
             "click",
             function () {
-                toggleBuildRosterPlayer(player);
+
+                toggleRosterPlayer(
+                    player.id
+                );
             }
         );
 
-
         container.appendChild(card);
     });
-
-
-    updateRosterCount();
 }
 
 
-/* =========================================================
-   TOGGLE BUILD ROSTER PLAYER
-   ========================================================= */
+function toggleRosterPlayer(playerId) {
 
-function toggleBuildRosterPlayer(player) {
+    const state =
+        GAME_STATE.buildRoster;
 
-    if (!isValidPlayer(player)) {
-
-        showNotification(
-            "Invalid player.",
-            "error"
+    const index =
+        state.players.findIndex(
+            function (player) {
+                return player.id === playerId;
+            }
         );
 
-        return;
-    }
+    if (index >= 0) {
 
-
-    const selected =
-        GAME_STATE.buildRoster.players;
-
-
-    const existingIndex =
-        selected.findIndex(function (item) {
-
-            return item.id === player.id;
-
-        });
-
-
-    if (existingIndex >= 0) {
-
-        selected.splice(
-            existingIndex,
+        state.players.splice(
+            index,
             1
         );
 
     } else {
 
         if (
-            selected.length >=
+            state.players.length >=
             GAME_CONFIG.BUILD_ROSTER.REQUIRED_PLAYERS
         ) {
 
@@ -1139,49 +991,23 @@ function toggleBuildRosterPlayer(player) {
             return;
         }
 
-        selected.push(
+        const player =
+            findPlayerById(playerId);
+
+        if (!player) {
+            return;
+        }
+
+        state.players.push(
             sanitizePlayer(player)
         );
     }
 
-
+    renderRosterPlayers();
+    updateRosterUI();
     saveAllGameData();
-
-    updateRosterCount();
-
-    /*
-     * Re-render the current list so selected cards
-     * update visually.
-     */
-
-    const club =
-        GAME_STATE.buildRoster.club;
-
-    if (club) {
-
-        getPlayersByClub(club)
-            .then(function (players) {
-
-                if (players.length < 6) {
-
-                    players =
-                        createFallbackClubPlayers(
-                            club,
-                            players
-                        );
-                }
-
-                renderRosterPlayers(players);
-
-            })
-            .catch(function () {});
-    }
 }
 
-
-/* =========================================================
-   BUILD ROSTER COUNT
-   ========================================================= */
 
 function updateRosterCount() {
 
@@ -1191,1727 +1017,13 @@ function updateRosterCount() {
         " / " +
         GAME_CONFIG.BUILD_ROSTER.REQUIRED_PLAYERS
     );
-
-
-    const startButton =
-        getElement(
-            "startRosterSeasonButton"
-        );
-
-    if (startButton) {
-
-        startButton.disabled =
-            GAME_STATE.buildRoster.players.length !==
-            GAME_CONFIG.BUILD_ROSTER.REQUIRED_PLAYERS;
-    }
 }
 
 
-/* =========================================================
-   START BUILD ROSTER SEASON
-   ========================================================= */
-
-function startRosterSeason() {
-
-    if (
-        GAME_STATE.buildRoster.players.length !==
-        GAME_CONFIG.BUILD_ROSTER.REQUIRED_PLAYERS
-    ) {
-
-        showNotification(
-            "Select exactly 6 players first.",
-            "error"
-        );
-
-        return;
-    }
-
-
-    if (!GAME_STATE.buildRoster.club) {
-
-        showNotification(
-            "Please select a club first.",
-            "error"
-        );
-
-        return;
-    }
-
-
-    GAME_STATE.buildRoster.matchNumber = 1;
-    GAME_STATE.buildRoster.points = 0;
-    GAME_STATE.buildRoster.wins = 0;
-    GAME_STATE.buildRoster.draws = 0;
-    GAME_STATE.buildRoster.losses = 0;
-    GAME_STATE.buildRoster.history = [];
-
-
-    saveAllGameData();
-
-    updateAllUI();
-
-    showScreen("rosterSeason");
-
-    showNotification(
-        "Season started!",
-        "success"
-    );
-}
-
-
-/* =========================================================
-   PLAY BUILD ROSTER MATCH
-   ========================================================= */
-
-function playBuildRosterMatch() {
+function updateRosterUI() {
 
     const state =
         GAME_STATE.buildRoster;
-
-
-    if (
-        state.matchNumber >
-        GAME_CONFIG.SEASON.MATCHES
-    ) {
-
-        showRosterPresentation();
-        return;
-    }
-
-
-    if (
-        state.players.length !==
-        GAME_CONFIG.BUILD_ROSTER.REQUIRED_PLAYERS
-    ) {
-
-        showNotification(
-            "You need exactly 6 players.",
-            "error"
-        );
-
-        return;
-    }
-
-
-    const opponent =
-        getRandomOpponentClub(
-            state.club
-        );
-
-
-    const playerRating =
-        calculateSquadRating(
-            state.players
-        );
-
-
-    const opponentRating =
-        getClubRating(opponent);
-
-
-    GAME_STATE.currentMatch = {
-        mode: "buildRoster",
-        returnScreen: "rosterSeason",
-        homeTeam: state.club,
-        awayTeam: opponent,
-        homeRating: playerRating,
-        awayRating: opponentRating,
-        matchNumber: state.matchNumber,
-        simulated: false
-    };
-
-
-    renderMatchScreen();
-
-    showScreen("match");
-}
-
-
-/* =========================================================
-   PLAY SUPER SQUAD MATCH
-   ========================================================= */
-
-function playSuperSquadMatch() {
-
-    const state =
-        GAME_STATE.superSquad;
-
-
-    if (!state.teamName) {
-
-        showNotification(
-            "Create your Super Squad first.",
-            "error"
-        );
-
-        return;
-    }
-
-
-    if (
-        state.lineup.length !==
-        GAME_CONFIG.SUPER_SQUAD.REQUIRED_PLAYERS
-    ) {
-
-        showNotification(
-            "You need exactly 11 players in your Starting XI.",
-            "error"
-        );
-
-        return;
-    }
-
-
-    if (
-        state.matchNumber >
-        GAME_CONFIG.SEASON.MATCHES
-    ) {
-
-        showSuperSquadPresentation();
-        return;
-    }
-
-
-    const opponent =
-        getRandomOpponentClub();
-
-
-    const playerRating =
-        calculateSquadRating(
-            getLineupPlayers()
-        );
-
-
-    let opponentRating =
-        getOpponentRating(
-            state.difficulty
-        );
-
-
-    /*
-     * Actual club strength can influence the opponent
-     * slightly while still respecting difficulty limits.
-     */
-
-    const actualClubRating =
-        getClubRating(opponent);
-
-
-    opponentRating =
-        Math.round(
-            (opponentRating + actualClubRating) / 2
-        );
-
-
-    const difficulty =
-        state.difficulty === "hard"
-            ? GAME_CONFIG.SUPER_SQUAD.DIFFICULTY.HARD
-            : GAME_CONFIG.SUPER_SQUAD.DIFFICULTY.EASY;
-
-
-    opponentRating =
-        clamp(
-            opponentRating,
-            difficulty.MIN_OPPONENT_RATING,
-            difficulty.MAX_OPPONENT_RATING
-        );
-
-
-    GAME_STATE.currentMatch = {
-        mode: "superSquad",
-        returnScreen: "superSquad",
-        homeTeam: state.teamName,
-        awayTeam: opponent,
-        homeRating: playerRating,
-        awayRating: opponentRating,
-        matchNumber: state.matchNumber,
-        simulated: false
-    };
-
-
-    renderMatchScreen();
-
-    showScreen("match");
-}
-
-
-/* =========================================================
-   RENDER MATCH SCREEN
-   ========================================================= */
-
-function renderMatchScreen() {
-
-    const match =
-        GAME_STATE.currentMatch;
-
-    if (!match) {
-        return;
-    }
-
-
-    setText(
-        "matchCompetition",
-        match.mode === "superSquad"
-            ? "Super Squad"
-            : "Build a Roster"
-    );
-
-
-    setText(
-        "homeTeamName",
-        match.homeTeam
-    );
-
-    setText(
-        "awayTeamName",
-        match.awayTeam
-    );
-
-    setText(
-        "homeRating",
-        match.homeRating
-    );
-
-    setText(
-        "awayRating",
-        match.awayRating
-    );
-
-    setText(
-        "matchVenue",
-        "Super League Stadium"
-    );
-
-    setText(
-        "matchMinute",
-        "0'"
-    );
-
-    setText(
-        "homeScore",
-        "0"
-    );
-
-    setText(
-        "awayScore",
-        "0"
-    );
-
-    setText(
-        "matchResult",
-        ""
-    );
-
-
-    const events =
-        getElement("matchEvents");
-
-    if (events) {
-        events.innerHTML =
-            "<p>Kick-off is ready!</p>";
-    }
-
-
-    const simulateButton =
-        getElement(
-            "simulateMatchButton"
-        );
-
-    if (simulateButton) {
-        simulateButton.disabled = false;
-    }
-}
-
-
-/* =========================================================
-   SIMULATE CURRENT MATCH
-   ========================================================= */
-
-function simulateCurrentMatch() {
-
-    const match =
-        GAME_STATE.currentMatch;
-
-    if (!match) {
-
-        showNotification(
-            "No match is ready.",
-            "error"
-        );
-
-        return;
-    }
-
-
-    if (match.simulated) {
-        return;
-    }
-
-
-    const score =
-        simulateScore(
-            match.homeRating,
-            match.awayRating
-        );
-
-
-    match.homeScore =
-        score.homeScore;
-
-    match.awayScore =
-        score.awayScore;
-
-    match.result =
-        score.result;
-
-    match.simulated =
-        true;
-
-
-    setText(
-        "homeScore",
-        score.homeScore
-    );
-
-    setText(
-        "awayScore",
-        score.awayScore
-    );
-
-    setText(
-        "matchMinute",
-        "90'"
-    );
-
-
-    renderMatchEvents(
-        score.homeScore,
-        score.awayScore,
-        match
-    );
-
-
-    const resultText =
-        match.mode === "superSquad"
-            ? getSuperSquadResultText(score.result)
-            : getResultLabel(score.result);
-
-
-    setText(
-        "matchResult",
-        resultText
-    );
-
-
-    const simulateButton =
-        getElement(
-            "simulateMatchButton"
-        );
-
-    if (simulateButton) {
-        simulateButton.disabled = true;
-    }
-
-
-    if (match.mode === "buildRoster") {
-
-        finishBuildRosterMatch(
-            match
-        );
-
-    } else {
-
-        finishSuperSquadMatch(
-            match
-        );
-    }
-}
-
-
-/* =========================================================
-   MATCH EVENTS
-   ========================================================= */
-
-function renderMatchEvents(
-    homeScore,
-    awayScore,
-    match
-) {
-
-    const container =
-        getElement("matchEvents");
-
-    if (!container) {
-        return;
-    }
-
-
-    const events = [];
-
-    const totalGoals =
-        homeScore + awayScore;
-
-
-    if (totalGoals === 0) {
-
-        events.push(
-            "90' — Full time. A goalless draw."
-        );
-
-    } else {
-
-        for (
-            let i = 0;
-            i < totalGoals;
-            i++
-        ) {
-
-            const minute =
-                randomInt(
-                    5,
-                    88
-                );
-
-            const homeGoal =
-                i < homeScore;
-
-            events.push(
-                minute +
-                "' — " +
-                (
-                    homeGoal
-                        ? match.homeTeam
-                        : match.awayTeam
-                ) +
-                " scores!"
-            );
-        }
-
-        events.push(
-            "90' — Full time."
-        );
-    }
-
-
-    container.innerHTML = "";
-
-
-    events
-        .sort(function () {
-            return Math.random() - 0.5;
-        })
-        .forEach(function (eventText) {
-
-            const paragraph =
-                document.createElement("p");
-
-            paragraph.textContent =
-                eventText;
-
-            container.appendChild(
-                paragraph
-            );
-        });
-}
-
-
-/* =========================================================
-   BUILD ROSTER MATCH FINISH
-   ========================================================= */
-
-function finishBuildRosterMatch(match) {
-
-    const state =
-        GAME_STATE.buildRoster;
-
-
-    const result =
-        match.result;
-
-
-    const points =
-        getResultPoints(
-            result,
-            "easy"
-        );
-
-
-    state.points += points;
-
-
-    if (result === "win") {
-        state.wins++;
-    } else if (result === "draw") {
-        state.draws++;
-    } else {
-        state.losses++;
-    }
-
-
-    state.history.push({
-        matchNumber:
-            match.matchNumber,
-
-        opponent:
-            match.awayTeam,
-
-        opponentRating:
-            match.awayRating,
-
-        homeScore:
-            match.homeScore,
-
-        awayScore:
-            match.awayScore,
-
-        result,
-
-        points,
-
-        date:
-            getTimestamp()
-    });
-
-
-    state.matchNumber++;
-
-
-    saveAllGameData();
-
-    updateAllUI();
-
-
-    setTimeout(function () {
-
-        if (
-            state.matchNumber >
-            GAME_CONFIG.SEASON.MATCHES
-        ) {
-
-            showRosterPresentation();
-
-        } else {
-
-            showScreen("rosterSeason");
-        }
-
-    }, 1200);
-}
-
-
-/* =========================================================
-   SUPER SQUAD MATCH FINISH
-   ========================================================= */
-
-function finishSuperSquadMatch(match) {
-
-    const state =
-        GAME_STATE.superSquad;
-
-
-    const points =
-        getResultPoints(
-            match.result,
-            state.difficulty
-        );
-
-
-    state.points += points;
-
-
-    if (match.result === "win") {
-        state.wins++;
-    } else if (match.result === "draw") {
-        state.draws++;
-    } else {
-        state.losses++;
-    }
-
-
-    state.history.push({
-        matchNumber:
-            match.matchNumber,
-
-        opponent:
-            match.awayTeam,
-
-        opponentRating:
-            match.awayRating,
-
-        homeScore:
-            match.homeScore,
-
-        awayScore:
-            match.awayScore,
-
-        result:
-            match.result,
-
-        points,
-
-        difficulty:
-            state.difficulty,
-
-        date:
-            getTimestamp()
-    });
-
-
-    state.matchNumber++;
-
-
-    saveAllGameData();
-
-    updateAllUI();
-
-
-    setTimeout(function () {
-
-        if (
-            state.matchNumber >
-            GAME_CONFIG.SEASON.MATCHES
-        ) {
-
-            showSuperSquadPresentation();
-
-        } else {
-
-            showScreen("superSquad");
-        }
-
-    }, 1200);
-}
-
-
-/* =========================================================
-   BUILD ROSTER — SIMULATE WHOLE SEASON
-   ========================================================= */
-
-function simulateBuildRosterSeason() {
-
-    const state =
-        GAME_STATE.buildRoster;
-
-
-    if (
-        state.players.length !==
-        GAME_CONFIG.BUILD_ROSTER.REQUIRED_PLAYERS
-    ) {
-
-        showNotification(
-            "You need exactly 6 players.",
-            "error"
-        );
-
-        return;
-    }
-
-
-    while (
-        state.matchNumber <=
-        GAME_CONFIG.SEASON.MATCHES
-    ) {
-
-        const opponent =
-            getRandomOpponentClub(
-                state.club
-            );
-
-
-        const squadRating =
-            calculateSquadRating(
-                state.players
-            );
-
-
-        const opponentRating =
-            getClubRating(opponent);
-
-
-        const score =
-            simulateScore(
-                squadRating,
-                opponentRating
-            );
-
-
-        const points =
-            getResultPoints(
-                score.result,
-                "easy"
-            );
-
-
-        state.points += points;
-
-
-        if (score.result === "win") {
-            state.wins++;
-        } else if (score.result === "draw") {
-            state.draws++;
-        } else {
-            state.losses++;
-        }
-
-
-        state.history.push({
-            matchNumber:
-                state.matchNumber,
-
-            opponent,
-
-            opponentRating,
-
-            homeScore:
-                score.homeScore,
-
-            awayScore:
-                score.awayScore,
-
-            result:
-                score.result,
-
-            points,
-
-            date:
-                getTimestamp()
-        });
-
-
-        state.matchNumber++;
-    }
-
-
-    saveAllGameData();
-
-    updateAllUI();
-
-    showRosterPresentation();
-}
-
-
-/* =========================================================
-   SUPER SQUAD — CREATE TEAM
-   ========================================================= */
-
-function createSuperSquad() {
-
-    const input =
-        getElement("teamName");
-
-    if (!input) {
-        return;
-    }
-
-
-    const validation =
-        validateTeamName(
-            input.value
-        );
-
-
-    if (!validation.valid) {
-
-        showNotification(
-            validation.message,
-            "error"
-        );
-
-        return;
-    }
-
-
-    if (
-        GAME_STATE.superSquad.teamName
-    ) {
-
-        showNotification(
-            "Your Super Squad already exists.",
-            "info"
-        );
-
-        return;
-    }
-
-
-    GAME_STATE.superSquad.teamName =
-        validation.name;
-
-    GAME_STATE.superSquad.collection =
-        [];
-
-    GAME_STATE.superSquad.lineup =
-        [];
-
-    GAME_STATE.superSquad.points =
-        0;
-
-    GAME_STATE.superSquad.coins =
-        0;
-
-    GAME_STATE.superSquad.season =
-        1;
-
-    GAME_STATE.superSquad.matchNumber =
-        1;
-
-    GAME_STATE.superSquad.wins =
-        0;
-
-    GAME_STATE.superSquad.draws =
-        0;
-
-    GAME_STATE.superSquad.losses =
-        0;
-
-    GAME_STATE.superSquad.history =
-        [];
-
-
-    saveAllGameData();
-
-    updateAllUI();
-
-    showNotification(
-        "Welcome to Super Squad, " +
-        validation.name +
-        "!",
-        "success"
-    );
-}
-
-
-/* =========================================================
-   SUPER SQUAD DIFFICULTY
-   ========================================================= */
-
-function setSuperSquadDifficulty(
-    difficulty
-) {
-
-    if (
-        difficulty !== "easy" &&
-        difficulty !== "hard"
-    ) {
-        return;
-    }
-
-
-    GAME_STATE.superSquad.difficulty =
-        difficulty;
-
-
-    saveAllGameData();
-
-    updateAllUI();
-
-
-    showNotification(
-        difficulty === "hard"
-            ? "Hard difficulty selected."
-            : "Easy difficulty selected.",
-        "success"
-    );
-}
-
-
-/* =========================================================
-   GET STARTING XI PLAYERS
-   ========================================================= */
-
-function getLineupPlayers() {
-
-    const state =
-        GAME_STATE.superSquad;
-
-
-    return state.lineup
-        .map(function (id) {
-
-            return findPlayerById(
-                state.collection,
-                id
-            );
-
-        })
-        .filter(Boolean);
-}
-
-
-/* =========================================================
-   SUPER SQUAD PACKS
-   ========================================================= */
-
-async function openPack(packType) {
-
-    const state =
-        GAME_STATE.superSquad;
-
-
-    if (!state.teamName) {
-
-        showNotification(
-            "Create your Super Squad first.",
-            "error"
-        );
-
-        return;
-    }
-
-
-    let pack;
-
-
-    switch (packType) {
-
-        case "bronze":
-            pack =
-                GAME_CONFIG.PACKS.BRONZE;
-            break;
-
-        case "gold":
-            pack =
-                GAME_CONFIG.PACKS.GOLD;
-            break;
-
-        case "icon":
-            pack =
-                GAME_CONFIG.PACKS.ICON;
-            break;
-
-        default:
-
-            showNotification(
-                "Invalid pack.",
-                "error"
-            );
-
-            return;
-    }
-
-
-    if (state.points < pack.COST) {
-
-        showNotification(
-            "You need " +
-            pack.COST +
-            " points to buy this pack.",
-            "error"
-        );
-
-        return;
-    }
-
-
-    state.points -= pack.COST;
-
-
-    try {
-
-        const cards =
-            await generatePack(
-                packType
-            );
-
-
-        if (
-            !Array.isArray(cards) ||
-            cards.length === 0
-        ) {
-
-            state.points += pack.COST;
-
-            showNotification(
-                "Pack opening failed. Your points were refunded.",
-                "error"
-            );
-
-            return;
-        }
-
-
-        cards.forEach(function (card) {
-
-            const safeCard =
-                sanitizePlayer(card);
-
-            if (safeCard) {
-
-                state.collection.push(
-                    safeCard
-                );
-            }
-        });
-
-
-        state.collection =
-            uniqueById(
-                state.collection
-            );
-
-
-        saveAllGameData();
-
-        updateAllUI();
-
-        showPackResults(
-            cards,
-            pack.NAME
-        );
-
-
-    } catch (error) {
-
-        console.error(
-            "Pack error:",
-            error
-        );
-
-
-        state.points += pack.COST;
-
-        saveAllGameData();
-
-        showNotification(
-            "Pack opening failed. Your points were refunded.",
-            "error"
-        );
-    }
-}
-
-
-/* =========================================================
-   PACK RESULTS
-   ========================================================= */
-
-function showPackResults(
-    cards,
-    packName
-) {
-
-    let body =
-        "<div class=\"pack-results\">";
-
-
-    cards.forEach(function (card) {
-
-        body += `
-            <div class="pack-result-card rarity-${String(
-                card.rarity
-            ).toLowerCase()}">
-
-                <strong>
-                    ${escapeHTML(card.name)}
-                </strong>
-
-                <span>
-                    ${escapeHTML(card.position)}
-                </span>
-
-                <span>
-                    ${card.rating}
-                </span>
-
-                <small>
-                    ${escapeHTML(card.rarity)}
-                </small>
-
-                <small>
-                    ${escapeHTML(card.club)}
-                </small>
-
-            </div>
-        `;
-    });
-
-
-    body += "</div>";
-
-
-    showModal(
-        packName,
-        body
-    );
-}
-
-
-/* =========================================================
-   COLLECTION FILTER
-   ========================================================= */
-
-function setCollectionFilter(
-    filter
-) {
-
-    GAME_STATE.collectionFilter =
-        filter;
-
-
-    renderCollection();
-}
-
-
-/* =========================================================
-   RENDER COLLECTION
-   ========================================================= */
-
-function renderCollection() {
-
-    const state =
-        GAME_STATE.superSquad;
-
-
-    const container =
-        getElement("collectionPlayers");
-
-    if (!container) {
-        return;
-    }
-
-
-    updateCollectionCounts();
-
-
-    let cards =
-        state.collection;
-
-
-    if (
-        GAME_STATE.collectionFilter !==
-        "all"
-    ) {
-
-        cards =
-            cards.filter(function (player) {
-
-                return (
-                    player.rarity ===
-                    GAME_STATE.collectionFilter
-                );
-
-            });
-    }
-
-
-    container.innerHTML = "";
-
-
-    if (cards.length === 0) {
-
-        container.innerHTML =
-            "<p>No cards found.</p>";
-
-        return;
-    }
-
-
-    cards.forEach(function (player) {
-
-        const card =
-            document.createElement("article");
-
-        card.className =
-            "collection-card rarity-" +
-            String(player.rarity)
-                .toLowerCase();
-
-
-        const isInLineup =
-            state.lineup.includes(
-                player.id
-            );
-
-
-        card.innerHTML = `
-            <h3>
-                ${escapeHTML(player.name)}
-            </h3>
-
-            <strong>
-                ${player.rating}
-            </strong>
-
-            <p>
-                ${escapeHTML(player.position)}
-            </p>
-
-            <p>
-                ${escapeHTML(player.club)}
-            </p>
-
-            <span>
-                ${escapeHTML(player.rarity)}
-            </span>
-
-            <button
-                type="button"
-                class="collection-lineup-button"
-                data-player-id="${escapeAttribute(
-                    player.id
-                )}"
-            >
-                ${
-                    isInLineup
-                        ? "Remove from XI"
-                        : "Add to XI"
-                }
-            </button>
-        `;
-
-
-        const button =
-            card.querySelector(
-                ".collection-lineup-button"
-            );
-
-
-        if (button) {
-
-            button.addEventListener(
-                "click",
-                function () {
-
-                    toggleLineupPlayer(
-                        player.id
-                    );
-
-                }
-            );
-        }
-
-
-        container.appendChild(card);
-    });
-}
-
-
-/* =========================================================
-   COLLECTION COUNTS
-   ========================================================= */
-
-function updateCollectionCounts() {
-
-    const collection =
-        GAME_STATE.superSquad.collection;
-
-
-    const common =
-        collection.filter(function (player) {
-            return player.rarity === "Common";
-        }).length;
-
-
-    const rare =
-        collection.filter(function (player) {
-            return player.rarity === "Rare";
-        }).length;
-
-
-    const icons =
-        collection.filter(function (player) {
-            return player.rarity === "Icon";
-        }).length;
-
-
-    setText(
-        "totalCards",
-        collection.length
-    );
-
-    setText(
-        "commonCards",
-        common
-    );
-
-    setText(
-        "rareCards",
-        rare
-    );
-
-    setText(
-        "iconCards",
-        icons
-    );
-
-    setText(
-        "collectionCount",
-        collection.length
-    );
-}
-
-
-/* =========================================================
-   TOGGLE LINEUP PLAYER
-   ========================================================= */
-
-function toggleLineupPlayer(
-    playerId
-) {
-
-    const state =
-        GAME_STATE.superSquad;
-
-
-    const player =
-        findPlayerById(
-            state.collection,
-            playerId
-        );
-
-
-    if (!player) {
-
-        showNotification(
-            "Player not found.",
-            "error"
-        );
-
-        return;
-    }
-
-
-    const existingIndex =
-        state.lineup.indexOf(
-            playerId
-        );
-
-
-    if (existingIndex >= 0) {
-
-        state.lineup.splice(
-            existingIndex,
-            1
-        );
-
-    } else {
-
-        if (
-            state.lineup.length >=
-            GAME_CONFIG.SUPER_SQUAD.REQUIRED_PLAYERS
-        ) {
-
-            showNotification(
-                "Your Starting XI already has 11 players.",
-                "error"
-            );
-
-            return;
-        }
-
-        state.lineup.push(
-            playerId
-        );
-    }
-
-
-    saveAllGameData();
-
-    updateAllUI();
-
-    renderCollection();
-}
-
-
-/* =========================================================
-   SUPER SQUAD PRESENTATION
-   ========================================================= */
-
-function showSuperSquadPresentation() {
-
-    showPresentation(
-        GAME_STATE.superSquad,
-        true
-    );
-}
-
-
-/* =========================================================
-   BUILD ROSTER PRESENTATION
-   ========================================================= */
-
-function showRosterPresentation() {
-
-    showPresentation(
-        GAME_STATE.buildRoster,
-        false
-    );
-}
-
-
-/* =========================================================
-   PRESENTATION
-   ========================================================= */
-
-function showPresentation(
-    state,
-    isSuperSquad
-) {
-
-    setText(
-        "presentationTeamName",
-        isSuperSquad
-            ? state.teamName
-            : state.club
-    );
-
-
-    setText(
-        "presentationWins",
-        state.wins
-    );
-
-    setText(
-        "presentationDraws",
-        state.draws
-    );
-
-    setText(
-        "presentationLosses",
-        state.losses
-    );
-
-    setText(
-        "presentationPoints",
-        state.points
-    );
-
-
-    const results =
-        getElement(
-            "presentationResults"
-        );
-
-
-    if (results) {
-
-        results.innerHTML = "";
-
-
-        state.history.forEach(
-            function (match) {
-
-                const item =
-                    document.createElement("div");
-
-                item.className =
-                    "presentation-result";
-
-
-                item.innerHTML = `
-                    <strong>
-                        Match ${match.matchNumber}
-                    </strong>
-
-                    <span>
-                        ${escapeHTML(match.opponent)}
-                    </span>
-
-                    <span>
-                        ${match.homeScore} -
-                        ${match.awayScore}
-                    </span>
-
-                    <span>
-                        ${escapeHTML(
-                            getResultLabel(
-                                match.result
-                            )
-                        )}
-                    </span>
-
-                    <span>
-                        +${match.points} points
-                    </span>
-                `;
-
-
-                results.appendChild(item);
-            }
-        );
-    }
-
-
-    setText(
-        "presentationSeason",
-        state.season
-    );
-
-
-    saveAllGameData();
-
-    showScreen("presentation");
-}
-
-
-/* =========================================================
-   START NEW SEASON
-   ========================================================= */
-
-function startNewSeason() {
-
-    if (
-        GAME_STATE.currentScreen !==
-        "presentation"
-    ) {
-        return;
-    }
-
-
-    /*
-     * Determine which mode has just finished.
-     */
-
-    if (
-        GAME_STATE.superSquad.history.length >=
-        GAME_CONFIG.SEASON.MATCHES &&
-        GAME_STATE.superSquad.matchNumber >
-        GAME_CONFIG.SEASON.MATCHES
-    ) {
-
-        GAME_STATE.superSquad.season++;
-
-        GAME_STATE.superSquad.matchNumber = 1;
-        GAME_STATE.superSquad.wins = 0;
-        GAME_STATE.superSquad.draws = 0;
-        GAME_STATE.superSquad.losses = 0;
-        GAME_STATE.superSquad.history = [];
-
-
-        saveAllGameData();
-
-        showScreen("superSquad");
-
-        return;
-    }
-
-
-    if (
-        GAME_STATE.buildRoster.history.length >=
-        GAME_CONFIG.SEASON.MATCHES &&
-        GAME_STATE.buildRoster.matchNumber >
-        GAME_CONFIG.SEASON.MATCHES
-    ) {
-
-        GAME_STATE.buildRoster.season++;
-
-        GAME_STATE.buildRoster.matchNumber = 1;
-        GAME_STATE.buildRoster.wins = 0;
-        GAME_STATE.buildRoster.draws = 0;
-        GAME_STATE.buildRoster.losses = 0;
-        GAME_STATE.buildRoster.points = 0;
-        GAME_STATE.buildRoster.history = [];
-
-
-        saveAllGameData();
-
-        showScreen("buildRoster");
-
-        return;
-    }
-
-
-    showScreen("mainMenu");
-}
-
-
-/* =========================================================
-   RESET GAME
-   ========================================================= */
-
-function resetGame() {
-
-    showModal(
-        "Reset Game",
-        `
-            <p>
-                Are you sure you want to erase all
-                Super League Soccer progress?
-            </p>
-
-            <button
-                type="button"
-                id="confirmResetButton"
-                class="danger-button"
-            >
-                Yes, Reset Everything
-            </button>
-        `
-    );
-
-
-    setTimeout(function () {
-
-        const button =
-            getElement(
-                "confirmResetButton"
-            );
-
-        if (!button) {
-            return;
-        }
-
-
-        button.addEventListener(
-            "click",
-            function () {
-
-                removeFromStorage(
-                    GAME_CONFIG.STORAGE_KEYS.BUILD_ROSTER
-                );
-
-                removeFromStorage(
-                    GAME_CONFIG.STORAGE_KEYS.SUPER_SQUAD
-                );
-
-
-                window.location.reload();
-            }
-        );
-
-    }, 0);
-}
-
-
-/* =========================================================
-   UPDATE ALL UI
-   ========================================================= */
-
-function updateAllUI() {
-
-    updateHeader();
-    updateBuildRosterUI();
-    updateSuperSquadUI();
-    updateCollectionCounts();
-}
-
-
-/* =========================================================
-   HEADER
-   ========================================================= */
-
-function updateHeader() {
-
-    setText(
-        "headerPoints",
-        GAME_STATE.superSquad.points
-    );
-
-    setText(
-        "headerCoins",
-        GAME_STATE.superSquad.coins
-    );
-}
-
-
-/* =========================================================
-   BUILD ROSTER UI
-   ========================================================= */
-
-function updateBuildRosterUI() {
-
-    const state =
-        GAME_STATE.buildRoster;
-
 
     setText(
         "rosterMatchNumber",
@@ -2938,7 +1050,6 @@ function updateBuildRosterUI() {
         state.losses
     );
 
-
     setText(
         "rosterNextMatch",
         state.matchNumber <=
@@ -2947,225 +1058,519 @@ function updateBuildRosterUI() {
             : "Season Complete"
     );
 
-
     updateRosterCount();
+
+    const startButton =
+        getElement(
+            "startRosterSeasonButton"
+        );
+
+    if (startButton) {
+
+        startButton.disabled =
+            !state.club ||
+            state.players.length !==
+            GAME_CONFIG.BUILD_ROSTER.REQUIRED_PLAYERS;
+    }
+
+    const playButton =
+        getElement(
+            "playRosterMatchButton"
+        );
+
+    if (playButton) {
+
+        playButton.disabled =
+            state.players.length !==
+            GAME_CONFIG.BUILD_ROSTER.REQUIRED_PLAYERS ||
+            state.matchNumber >
+            GAME_CONFIG.SEASON.MATCHES;
+    }
 
     renderRosterHistory();
     renderLeagueTable();
 }
 
 
-/* =========================================================
-   BUILD ROSTER HISTORY
-   ========================================================= */
-
-function renderRosterHistory() {
-
-    const container =
-        getElement(
-            "rosterMatchHistory"
-        );
-
-
-    if (!container) {
-        return;
-    }
-
-
-    container.innerHTML = "";
-
-
-    const history =
-        GAME_STATE.buildRoster.history;
-
-
-    if (history.length === 0) {
-
-        container.innerHTML =
-            "<p>No matches played yet.</p>";
-
-        return;
-    }
-
-
-    history.forEach(function (match) {
-
-        const item =
-            document.createElement("div");
-
-        item.className =
-            "history-item";
-
-
-        item.innerHTML = `
-            <strong>
-                Match ${match.matchNumber}
-            </strong>
-
-            <span>
-                ${escapeHTML(match.opponent)}
-            </span>
-
-            <span>
-                ${match.homeScore} -
-                ${match.awayScore}
-            </span>
-
-            <span>
-                ${getResultLabel(match.result)}
-            </span>
-
-            <span>
-                +${match.points}
-            </span>
-        `;
-
-
-        container.appendChild(item);
-    });
-}
-
-
-/* =========================================================
-   LEAGUE TABLE
-   ========================================================= */
-
-function renderLeagueTable() {
-
-    const container =
-        getElement(
-            "rosterLeagueTable"
-        );
-
-
-    if (!container) {
-        return;
-    }
-
+function startRosterSeason() {
 
     const state =
         GAME_STATE.buildRoster;
 
+    if (
+        state.players.length !==
+        GAME_CONFIG.BUILD_ROSTER.REQUIRED_PLAYERS
+    ) {
 
-    const rows = [
-        {
-            team: state.club || "Your Team",
-            played:
-                state.history.length,
-            wins:
-                state.wins,
-            draws:
-                state.draws,
-            losses:
-                state.losses,
-            points:
-                state.points
-        }
-    ];
-
-
-    const opponents =
-        state.history.map(function (match) {
-
-            return {
-                team: match.opponent,
-                played: 1,
-                wins:
-                    match.result === "loss"
-                        ? 1
-                        : 0,
-                draws:
-                    match.result === "draw"
-                        ? 1
-                        : 0,
-                losses:
-                    match.result === "win"
-                        ? 1
-                        : 0,
-                points:
-                    match.result === "win"
-                        ? 3
-                        : match.result === "draw"
-                            ? 1
-                            : 0
-            };
-        });
-
-
-    rows.push(...opponents);
-
-
-    rows.sort(function (a, b) {
-
-        return (
-            b.points - a.points
+        showNotification(
+            "You need exactly 6 players.",
+            "error"
         );
+
+        return;
+    }
+
+    if (!state.club) {
+
+        showNotification(
+            "Choose a club first.",
+            "error"
+        );
+
+        return;
+    }
+
+    if (
+        state.matchNumber >
+        GAME_CONFIG.SEASON.MATCHES
+    ) {
+
+        showNotification(
+            "This season is already complete.",
+            "error"
+        );
+
+        return;
+    }
+
+    showScreen("rosterSeason");
+
+    updateRosterUI();
+}
+
+
+function playBuildRosterMatch() {
+
+    const state =
+        GAME_STATE.buildRoster;
+
+    if (
+        state.players.length !==
+        GAME_CONFIG.BUILD_ROSTER.REQUIRED_PLAYERS
+    ) {
+
+        showNotification(
+            "Select exactly 6 players first.",
+            "error"
+        );
+
+        return;
+    }
+
+    if (
+        state.matchNumber >
+        GAME_CONFIG.SEASON.MATCHES
+    ) {
+
+        finishSeason("buildRoster");
+        return;
+    }
+
+    const opponent =
+        getRandomOpponentClub(
+            state.club
+        );
+
+    const playerRating =
+        calculateSquadRating(
+            state.players
+        );
+
+    const opponentRating =
+        getClubRating(opponent);
+
+    GAME_STATE.currentMatch = {
+        mode: "buildRoster",
+        returnScreen: "rosterSeason",
+        matchNumber: state.matchNumber,
+        homeTeam: state.club,
+        awayTeam: opponent,
+        homeRating: playerRating,
+        awayRating: opponentRating
+    };
+
+    setupMatchScreen();
+
+    showScreen("match");
+}
+
+
+function simulateBuildRosterSeason() {
+
+    const state =
+        GAME_STATE.buildRoster;
+
+    if (
+        state.players.length !==
+        GAME_CONFIG.BUILD_ROSTER.REQUIRED_PLAYERS
+    ) {
+
+        showNotification(
+            "Select exactly 6 players first.",
+            "error"
+        );
+
+        return;
+    }
+
+    while (
+        state.matchNumber <=
+        GAME_CONFIG.SEASON.MATCHES
+    ) {
+
+        playBuildRosterMatchImmediately();
+    }
+
+    finishSeason("buildRoster");
+}
+
+
+function playBuildRosterMatchImmediately() {
+
+    const state =
+        GAME_STATE.buildRoster;
+
+    const opponent =
+        getRandomOpponentClub(
+            state.club
+        );
+
+    const homeRating =
+        calculateSquadRating(
+            state.players
+        );
+
+    const awayRating =
+        getClubRating(opponent);
+
+    const score =
+        simulateScore(
+            homeRating,
+            awayRating
+        );
+
+    completeBuildRosterMatch(
+        opponent,
+        homeRating,
+        awayRating,
+        score.home,
+        score.away
+    );
+}
+
+
+function completeBuildRosterMatch(
+    opponent,
+    homeRating,
+    awayRating,
+    homeScore,
+    awayScore
+) {
+
+    const state =
+        GAME_STATE.buildRoster;
+
+    const result =
+        getMatchResult(
+            homeScore,
+            awayScore
+        );
+
+    const points =
+        getResultPoints(
+            result,
+            "buildRoster"
+        );
+
+    if (result === "win") {
+        state.wins++;
+    }
+
+    if (result === "draw") {
+        state.draws++;
+    }
+
+    if (result === "loss") {
+        state.losses++;
+    }
+
+    state.points += points;
+
+    state.history.push({
+        matchNumber:
+            state.matchNumber,
+
+        opponent:
+            opponent,
+
+        homeScore:
+            homeScore,
+
+        awayScore:
+            awayScore,
+
+        result:
+            result,
+
+        points:
+            points,
+
+        homeRating:
+            homeRating,
+
+        awayRating:
+            awayRating,
+
+        date:
+            getTimestamp()
     });
 
+    state.matchNumber++;
 
-    container.innerHTML = `
-        <div class="league-table-row league-table-header">
-            <span>#</span>
-            <span>Team</span>
-            <span>P</span>
-            <span>W</span>
-            <span>D</span>
-            <span>L</span>
-            <span>Pts</span>
-        </div>
-    `;
-
-
-    rows.forEach(function (row, index) {
-
-        const element =
-            document.createElement("div");
-
-        element.className =
-            "league-table-row";
-
-
-        element.innerHTML = `
-            <span>${index + 1}</span>
-            <span>${escapeHTML(row.team)}</span>
-            <span>${row.played}</span>
-            <span>${row.wins}</span>
-            <span>${row.draws}</span>
-            <span>${row.losses}</span>
-            <span>${row.points}</span>
-        `;
-
-
-        container.appendChild(element);
-    });
+    saveAllGameData();
 }
 
 
 /* =========================================================
-   SUPER SQUAD UI
+   SUPER SQUAD
    ========================================================= */
+
+function createSuperSquad() {
+
+    const input =
+        getElement("teamName");
+
+    if (!input) {
+        return;
+    }
+
+    const name =
+        cleanText(input.value);
+
+    const validation =
+        validateTeamName(name);
+
+    if (
+        !validation ||
+        validation.valid === false
+    ) {
+
+        showNotification(
+            validation?.message ||
+            "Please choose a valid team name.",
+            "error"
+        );
+
+        return;
+    }
+
+    GAME_STATE.superSquad.teamName =
+        name;
+
+    showNotification(
+        name + " created!",
+        "success"
+    );
+
+    saveAllGameData();
+
+    updateSuperSquadUI();
+}
+
+
+function setSuperSquadDifficulty(
+    difficulty
+) {
+
+    if (
+        difficulty !== "easy" &&
+        difficulty !== "hard"
+    ) {
+        return;
+    }
+
+    GAME_STATE.superSquad.difficulty =
+        difficulty;
+
+    saveAllGameData();
+    updateSuperSquadUI();
+
+    showNotification(
+        difficulty === "easy"
+            ? "Easy difficulty selected."
+            : "Hard difficulty selected.",
+        "success"
+    );
+}
+
+
+function getLineupPlayers() {
+
+    const state =
+        GAME_STATE.superSquad;
+
+    return state.lineup
+        .map(function (id) {
+            return findPlayerById(id);
+        })
+        .filter(Boolean);
+}
+
+
+function renderSuperSquadCollection() {
+
+    const container =
+        getElement("collectionPlayers");
+
+    if (!container) {
+        return;
+    }
+
+    container.innerHTML = "";
+
+    const state =
+        GAME_STATE.superSquad;
+
+    let players =
+        state.collection.slice();
+
+    if (
+        GAME_STATE.collectionFilter !==
+        "all"
+    ) {
+
+        players =
+            players.filter(
+                function (player) {
+                    return (
+                        String(player.rarity || "")
+                            .toLowerCase() ===
+                        GAME_STATE.collectionFilter
+                            .toLowerCase()
+                    );
+                }
+            );
+    }
+
+    if (players.length === 0) {
+
+        container.innerHTML =
+            "<p>No players in this collection filter.</p>";
+
+        return;
+    }
+
+    players.forEach(function (player) {
+
+        const selected =
+            state.lineup.includes(
+                player.id
+            );
+
+        const card =
+            document.createElement("button");
+
+        card.type = "button";
+
+        card.className =
+            "player-card" +
+            (selected ? " selected" : "");
+
+        card.innerHTML = `
+            <strong>${escapeHTML(player.name)}</strong>
+            <span>${escapeHTML(player.position)}</span>
+            <span>Rating: ${player.rating}</span>
+            <span>${escapeHTML(player.club)}</span>
+            <span>${escapeHTML(player.rarity || "Common")}</span>
+        `;
+
+        card.addEventListener(
+            "click",
+            function () {
+
+                toggleLineupPlayer(
+                    player.id
+                );
+            }
+        );
+
+        container.appendChild(card);
+    });
+}
+
+
+function toggleLineupPlayer(playerId) {
+
+    const state =
+        GAME_STATE.superSquad;
+
+    const index =
+        state.lineup.indexOf(playerId);
+
+    if (index >= 0) {
+
+        state.lineup.splice(
+            index,
+            1
+        );
+
+    } else {
+
+        if (
+            state.lineup.length >=
+            GAME_CONFIG.SUPER_SQUAD.REQUIRED_PLAYERS
+        ) {
+
+            showNotification(
+                "Your Starting XI already has 11 players.",
+                "error"
+            );
+
+            return;
+        }
+
+        const player =
+            findPlayerById(playerId);
+
+        if (!player) {
+            return;
+        }
+
+        if (
+            !state.collection.some(
+                function (item) {
+                    return item.id === player.id;
+                }
+            )
+        ) {
+            return;
+        }
+
+        state.lineup.push(
+            player.id
+        );
+    }
+
+    saveAllGameData();
+    updateSuperSquadUI();
+}
+
 
 function updateSuperSquadUI() {
 
     const state =
         GAME_STATE.superSquad;
 
-
     setText(
         "superSquadTeamName",
         state.teamName || "No Team"
     );
 
-
-    const rating =
-        calculateSquadRating(
-            getLineupPlayers()
-        );
-
-
     setText(
         "superSquadRating",
-        rating
+        calculateSquadRating(
+            getLineupPlayers()
+        )
     );
 
     setText(
@@ -3185,23 +1590,24 @@ function updateSuperSquadUI() {
         GAME_CONFIG.SUPER_SQUAD.REQUIRED_PLAYERS
     );
 
+    setText(
+        "collectionCount",
+        state.collection.length
+    );
 
-    const lineupContainer =
+    const lineup =
         getElement("startingXI");
 
+    if (lineup) {
 
-    if (lineupContainer) {
-
-        lineupContainer.innerHTML = "";
-
+        lineup.innerHTML = "";
 
         const players =
             getLineupPlayers();
 
-
         if (players.length === 0) {
 
-            lineupContainer.innerHTML =
+            lineup.innerHTML =
                 "<p>Your Starting XI is empty.</p>";
 
         } else {
@@ -3214,35 +1620,21 @@ function updateSuperSquadUI() {
                 item.className =
                     "starting-xi-player";
 
-
                 item.innerHTML = `
-                    <strong>
-                        ${escapeHTML(player.name)}
-                    </strong>
-
-                    <span>
-                        ${escapeHTML(player.position)}
-                    </span>
-
-                    <span>
-                        ${player.rating}
-                    </span>
+                    <strong>${escapeHTML(player.name)}</strong>
+                    <span>${escapeHTML(player.position)}</span>
+                    <span>${player.rating}</span>
                 `;
 
-
-                lineupContainer.appendChild(
-                    item
-                );
+                lineup.appendChild(item);
             });
         }
     }
-
 
     const playButton =
         getElement(
             "playSuperSquadMatchButton"
         );
-
 
     if (playButton) {
 
@@ -3254,60 +1646,647 @@ function updateSuperSquadUI() {
             GAME_CONFIG.SEASON.MATCHES;
     }
 
+    const easy =
+        getElement("easyDifficultyButton");
 
-    const easyButton =
-        getElement(
-            "easyDifficultyButton"
-        );
+    const hard =
+        getElement("hardDifficultyButton");
 
-    const hardButton =
-        getElement(
-            "hardDifficultyButton"
-        );
-
-
-    if (easyButton) {
-        easyButton.classList.toggle(
+    if (easy) {
+        easy.classList.toggle(
             "active",
             state.difficulty === "easy"
         );
     }
 
-    if (hardButton) {
-        hardButton.classList.toggle(
+    if (hard) {
+        hard.classList.toggle(
             "active",
             state.difficulty === "hard"
         );
     }
 
-
     renderSuperSquadHistory();
 }
 
 
-/* =========================================================
-   SUPER SQUAD HISTORY
-   ========================================================= */
+function playSuperSquadMatch() {
 
-function renderSuperSquadHistory() {
+    const state =
+        GAME_STATE.superSquad;
 
-    const container =
-        getElement(
-            "superSquadMatchHistory"
+    if (!state.teamName) {
+
+        showNotification(
+            "Create your team first.",
+            "error"
         );
 
+        return;
+    }
+
+    if (
+        state.lineup.length !==
+        GAME_CONFIG.SUPER_SQUAD.REQUIRED_PLAYERS
+    ) {
+
+        showNotification(
+            "You need exactly 11 players.",
+            "error"
+        );
+
+        return;
+    }
+
+    if (
+        state.matchNumber >
+        GAME_CONFIG.SEASON.MATCHES
+    ) {
+
+        finishSeason("superSquad");
+        return;
+    }
+
+    const opponent =
+        getRandomOpponentClub();
+
+    const homeRating =
+        calculateSquadRating(
+            getLineupPlayers()
+        );
+
+    const difficulty =
+        state.difficulty === "hard"
+            ? GAME_CONFIG.SUPER_SQUAD.DIFFICULTY.HARD
+            : GAME_CONFIG.SUPER_SQUAD.DIFFICULTY.EASY;
+
+    const awayRating =
+        randomInt(
+            difficulty.MIN_OPPONENT_RATING,
+            difficulty.MAX_OPPONENT_RATING
+        );
+
+    GAME_STATE.currentMatch = {
+        mode: "superSquad",
+        returnScreen: "superSquad",
+        matchNumber: state.matchNumber,
+        homeTeam: state.teamName,
+        awayTeam: opponent,
+        homeRating: homeRating,
+        awayRating: awayRating
+    };
+
+    setupMatchScreen();
+
+    showScreen("match");
+}
+
+
+/* =========================================================
+   PACKS
+   ========================================================= */
+
+function openPack(packType) {
+
+    const state =
+        GAME_STATE.superSquad;
+
+    let cost = 0;
+
+    if (packType === "bronze") {
+        cost = GAME_CONFIG.PACKS.BRONZE.COST;
+    }
+
+    if (packType === "gold") {
+        cost = GAME_CONFIG.PACKS.GOLD.COST;
+    }
+
+    if (packType === "icon") {
+        cost = GAME_CONFIG.PACKS.ICON.COST;
+    }
+
+    if (!cost) {
+        return;
+    }
+
+    if (state.points < cost) {
+
+        showNotification(
+            "You do not have enough points.",
+            "error"
+        );
+
+        return;
+    }
+
+    state.points -= cost;
+
+    let cards = [];
+
+    try {
+
+        if (
+            typeof generatePack ===
+            "function"
+        ) {
+            cards =
+                generatePack(packType);
+        }
+
+    } catch (error) {
+
+        console.error(
+            "Pack generation error:",
+            error
+        );
+
+        cards = [];
+    }
+
+    if (!Array.isArray(cards)) {
+        cards = [];
+    }
+
+    cards =
+        cards.filter(isValidPlayer);
+
+    if (cards.length === 0) {
+
+        state.points += cost;
+
+        showNotification(
+            "The pack could not be opened. Your points were returned.",
+            "error"
+        );
+
+        return;
+    }
+
+    state.collection =
+        uniqueById(
+            state.collection.concat(cards)
+        );
+
+    saveAllGameData();
+    updateAllUI();
+
+    const names =
+        cards.map(function (player) {
+            return player.name;
+        }).join(", ");
+
+    showModal(
+        "Pack Opened!",
+        "<p>You received:</p><p>" +
+        escapeHTML(names) +
+        "</p>"
+    );
+}
+
+
+/* =========================================================
+   COLLECTION
+   ========================================================= */
+
+function setCollectionFilter(
+    filter
+) {
+
+    GAME_STATE.collectionFilter =
+        filter;
+
+    renderCollection();
+}
+
+
+function renderCollection() {
+
+    const state =
+        GAME_STATE.superSquad;
+
+    const players =
+        state.collection;
+
+    const common =
+        players.filter(
+            function (player) {
+                return String(player.rarity)
+                    .toLowerCase() ===
+                    "common";
+            }
+        ).length;
+
+    const rare =
+        players.filter(
+            function (player) {
+                return String(player.rarity)
+                    .toLowerCase() ===
+                    "rare";
+            }
+        ).length;
+
+    const icons =
+        players.filter(
+            function (player) {
+                return String(player.rarity)
+                    .toLowerCase() ===
+                    "icon";
+            }
+        ).length;
+
+    setText(
+        "totalCards",
+        players.length
+    );
+
+    setText(
+        "commonCards",
+        common
+    );
+
+    setText(
+        "rareCards",
+        rare
+    );
+
+    setText(
+        "iconCards",
+        icons
+    );
+
+    renderSuperSquadCollection();
+}
+
+
+/* =========================================================
+   MATCH SCREEN
+   ========================================================= */
+
+function setupMatchScreen() {
+
+    const match =
+        GAME_STATE.currentMatch;
+
+    if (!match) {
+        return;
+    }
+
+    setText(
+        "matchCompetition",
+        match.mode === "superSquad"
+            ? "Super League Soccer"
+            : match.homeTeam + " Season"
+    );
+
+    setText(
+        "homeTeamName",
+        match.homeTeam
+    );
+
+    setText(
+        "awayTeamName",
+        match.awayTeam
+    );
+
+    setText(
+        "homeRating",
+        match.homeRating
+    );
+
+    setText(
+        "awayRating",
+        match.awayRating
+    );
+
+    setText(
+        "homeScore",
+        0
+    );
+
+    setText(
+        "awayScore",
+        0
+    );
+
+    setText(
+        "matchMinute",
+        "0'"
+    );
+
+    setText(
+        "matchVenue",
+        "Super League Stadium"
+    );
+
+    setText(
+        "matchResult",
+        ""
+    );
+
+    const events =
+        getElement("matchEvents");
+
+    if (events) {
+        events.innerHTML =
+            "<p>Match ready.</p>";
+    }
+}
+
+
+function simulateCurrentMatch() {
+
+    const match =
+        GAME_STATE.currentMatch;
+
+    if (!match) {
+        return;
+    }
+
+    const score =
+        simulateScore(
+            match.homeRating,
+            match.awayRating
+        );
+
+    setText(
+        "homeScore",
+        score.home
+    );
+
+    setText(
+        "awayScore",
+        score.away
+    );
+
+    setText(
+        "matchMinute",
+        "90'"
+    );
+
+    const result =
+        getMatchResult(
+            score.home,
+            score.away
+        );
+
+    let points = 0;
+
+    if (match.mode === "superSquad") {
+
+        points =
+            getResultPoints(
+                result,
+                GAME_STATE.superSquad.difficulty
+            );
+
+        completeSuperSquadMatch(
+            match.awayTeam,
+            match.homeRating,
+            match.awayRating,
+            score.home,
+            score.away
+        );
+
+    } else {
+
+        points =
+            getResultPoints(
+                result,
+                "buildRoster"
+            );
+
+        completeBuildRosterMatch(
+            match.awayTeam,
+            match.homeRating,
+            match.awayRating,
+            score.home,
+            score.away
+        );
+    }
+
+    setText(
+        "matchResult",
+        getResultText(
+            result,
+            points
+        )
+    );
+
+    renderMatchEvents(
+        score.home,
+        score.away,
+        result
+    );
+
+    const button =
+        getElement("simulateMatchButton");
+
+    if (button) {
+        button.disabled = true;
+    }
+
+    saveAllGameData();
+}
+
+
+function renderMatchEvents(
+    homeScore,
+    awayScore,
+    result
+) {
+
+    const container =
+        getElement("matchEvents");
 
     if (!container) {
         return;
     }
 
+    container.innerHTML = "";
+
+    const events = [];
+
+    for (
+        let i = 0;
+        i < homeScore;
+        i++
+    ) {
+
+        events.push(
+            "⚽ Goal for the home team"
+        );
+    }
+
+    for (
+        let i = 0;
+        i < awayScore;
+        i++
+    ) {
+
+        events.push(
+            "⚽ Goal for " +
+            (
+                GAME_STATE.currentMatch?.awayTeam ||
+                "the away team"
+            )
+        );
+    }
+
+    if (events.length === 0) {
+
+        events.push(
+            "🧤 No goals were scored."
+        );
+    }
+
+    events.push(
+        "🏁 Full time — " +
+        getResultLabel(result)
+    );
+
+    events.forEach(function (eventText) {
+
+        const item =
+            document.createElement("div");
+
+        item.className =
+            "match-event";
+
+        item.textContent =
+            eventText;
+
+        container.appendChild(item);
+    });
+}
+
+
+function completeSuperSquadMatch(
+    opponent,
+    homeRating,
+    awayRating,
+    homeScore,
+    awayScore
+) {
+
+    const state =
+        GAME_STATE.superSquad;
+
+    const result =
+        getMatchResult(
+            homeScore,
+            awayScore
+        );
+
+    const points =
+        getResultPoints(
+            result,
+            state.difficulty
+        );
+
+    if (result === "win") {
+        state.wins++;
+    }
+
+    if (result === "draw") {
+        state.draws++;
+    }
+
+    if (result === "loss") {
+        state.losses++;
+    }
+
+    state.points += points;
+
+    state.history.push({
+        matchNumber:
+            state.matchNumber,
+
+        opponent:
+            opponent,
+
+        homeScore:
+            homeScore,
+
+        awayScore:
+            awayScore,
+
+        result:
+            result,
+
+        points:
+            points,
+
+        homeRating:
+            homeRating,
+
+        awayRating:
+            awayRating,
+
+        date:
+            getTimestamp()
+    });
+
+    state.matchNumber++;
+
+    saveAllGameData();
+}
+
+
+/* =========================================================
+   MATCH CALCULATIONS
+   ========================================================= */
+
+function getMatchResult(
+    homeScore,
+    awayScore
+) {
+
+    if (homeScore > awayScore) {
+        return "win";
+    }
+
+    if (homeScore < awayScore) {
+        return "loss";
+    }
+
+    return "draw";
+}
+
+
+function getResultText(
+    result,
+    points
+) {
+
+    if (result === "win") {
+        return "WIN! +" + points + " points";
+    }
+
+    if (result === "draw") {
+        return "DRAW! +" + points + " points";
+    }
+
+    return "LOSS! +0 points";
+}
+
+
+/* =========================================================
+   HISTORY
+   ========================================================= */
+
+function renderRosterHistory() {
+
+    const container =
+        getElement("rosterMatchHistory");
+
+    if (!container) {
+        return;
+    }
 
     container.innerHTML = "";
 
-
     const history =
-        GAME_STATE.superSquad.history;
-
+        GAME_STATE.buildRoster.history;
 
     if (history.length === 0) {
 
@@ -3317,6 +2296,48 @@ function renderSuperSquadHistory() {
         return;
     }
 
+    history.forEach(function (match) {
+
+        const item =
+            document.createElement("div");
+
+        item.className =
+            "history-item";
+
+        item.innerHTML = `
+            <strong>Match ${match.matchNumber}</strong>
+            <span>${escapeHTML(match.opponent)}</span>
+            <span>${match.homeScore} - ${match.awayScore}</span>
+            <span>${escapeHTML(getResultLabel(match.result))}</span>
+            <span>+${match.points}</span>
+        `;
+
+        container.appendChild(item);
+    });
+}
+
+
+function renderSuperSquadHistory() {
+
+    const container =
+        getElement("superSquadMatchHistory");
+
+    if (!container) {
+        return;
+    }
+
+    container.innerHTML = "";
+
+    const history =
+        GAME_STATE.superSquad.history;
+
+    if (history.length === 0) {
+
+        container.innerHTML =
+            "<p>No matches played yet.</p>";
+
+        return;
+    }
 
     history.forEach(function (match) {
 
@@ -3326,30 +2347,13 @@ function renderSuperSquadHistory() {
         item.className =
             "history-item";
 
-
         item.innerHTML = `
-            <strong>
-                Match ${match.matchNumber}
-            </strong>
-
-            <span>
-                ${escapeHTML(match.opponent)}
-            </span>
-
-            <span>
-                ${match.homeScore} -
-                ${match.awayScore}
-            </span>
-
-            <span>
-                ${getResultLabel(match.result)}
-            </span>
-
-            <span>
-                +${match.points}
-            </span>
+            <strong>Match ${match.matchNumber}</strong>
+            <span>${escapeHTML(match.opponent)}</span>
+            <span>${match.homeScore} - ${match.awayScore}</span>
+            <span>${escapeHTML(getResultLabel(match.result))}</span>
+            <span>+${match.points}</span>
         `;
-
 
         container.appendChild(item);
     });
@@ -3357,80 +2361,386 @@ function renderSuperSquadHistory() {
 
 
 /* =========================================================
-   RESULT TEXT
+   BUILD ROSTER TABLE
    ========================================================= */
 
-function getSuperSquadResultText(
-    result
-) {
+function renderLeagueTable() {
 
-    const points =
-        getResultPoints(
-            result,
-            GAME_STATE.superSquad.difficulty
-        );
+    const container =
+        getElement("rosterLeagueTable");
 
-
-    switch (result) {
-
-        case "win":
-            return "WIN! +" + points + " points";
-
-        case "draw":
-            return "DRAW! +" + points + " points";
-
-        case "loss":
-            return "LOSS! +0 points";
-
-        default:
-            return "";
+    if (!container) {
+        return;
     }
+
+    const state =
+        GAME_STATE.buildRoster;
+
+    const rows = [
+        {
+            team:
+                state.club || "Your Team",
+
+            played:
+                state.history.length,
+
+            wins:
+                state.wins,
+
+            draws:
+                state.draws,
+
+            losses:
+                state.losses,
+
+            points:
+                state.points
+        }
+    ];
+
+    state.history.forEach(function (match) {
+
+        rows.push({
+            team:
+                match.opponent,
+
+            played:
+                1,
+
+            wins:
+                match.result === "loss"
+                    ? 1
+                    : 0,
+
+            draws:
+                match.result === "draw"
+                    ? 1
+                    : 0,
+
+            losses:
+                match.result === "win"
+                    ? 1
+                    : 0,
+
+            points:
+                match.result === "win"
+                    ? 100
+                    : match.result === "draw"
+                        ? 50
+                        : 0
+        });
+    });
+
+    rows.sort(function (a, b) {
+        return b.points - a.points;
+    });
+
+    container.innerHTML = `
+        <div class="league-table-row league-table-header">
+            <span>#</span>
+            <span>Team</span>
+            <span>P</span>
+            <span>W</span>
+            <span>D</span>
+            <span>L</span>
+            <span>Pts</span>
+        </div>
+    `;
+
+    rows.forEach(function (row, index) {
+
+        const element =
+            document.createElement("div");
+
+        element.className =
+            "league-table-row";
+
+        element.innerHTML = `
+            <span>${index + 1}</span>
+            <span>${escapeHTML(row.team)}</span>
+            <span>${row.played}</span>
+            <span>${row.wins}</span>
+            <span>${row.draws}</span>
+            <span>${row.losses}</span>
+            <span>${row.points}</span>
+        `;
+
+        container.appendChild(element);
+    });
 }
 
 
 /* =========================================================
-   PRESENTATION SUPPORT
+   SEASON PRESENTATION
    ========================================================= */
 
-function getPresentationSeason(
-    state
-) {
+function finishSeason(mode) {
 
-    return safeInteger(
-        state.season,
-        1
+    const state =
+        mode === "superSquad"
+            ? GAME_STATE.superSquad
+            : GAME_STATE.buildRoster;
+
+    setText(
+        "presentationTeamName",
+        mode === "superSquad"
+            ? state.teamName
+            : state.club
+    );
+
+    setText(
+        "presentationWins",
+        state.wins
+    );
+
+    setText(
+        "presentationDraws",
+        state.draws
+    );
+
+    setText(
+        "presentationLosses",
+        state.losses
+    );
+
+    setText(
+        "presentationPoints",
+        state.points
+    );
+
+    const results =
+        getElement("presentationResults");
+
+    if (results) {
+
+        results.innerHTML = "";
+
+        state.history.forEach(function (match) {
+
+            const item =
+                document.createElement("div");
+
+            item.className =
+                "history-item";
+
+            item.innerHTML = `
+                <strong>Match ${match.matchNumber}</strong>
+                <span>${escapeHTML(match.opponent)}</span>
+                <span>${match.homeScore} - ${match.awayScore}</span>
+                <span>${escapeHTML(getResultLabel(match.result))}</span>
+                <span>+${match.points}</span>
+            `;
+
+            results.appendChild(item);
+        });
+    }
+
+    saveAllGameData();
+
+    showScreen("presentation");
+}
+
+
+function startNewSeason() {
+
+    if (
+        GAME_STATE.currentScreen !==
+        "presentation"
+    ) {
+        return;
+    }
+
+    const build =
+        GAME_STATE.buildRoster;
+
+    const squad =
+        GAME_STATE.superSquad;
+
+    /*
+     * Continue whichever mode has just
+     * completed its 19 matches.
+     */
+
+    if (
+        squad.history.length >=
+        GAME_CONFIG.SEASON.MATCHES &&
+        squad.matchNumber >
+        GAME_CONFIG.SEASON.MATCHES
+    ) {
+
+        squad.season++;
+        squad.matchNumber = 1;
+        squad.wins = 0;
+        squad.draws = 0;
+        squad.losses = 0;
+        squad.history = [];
+
+        saveAllGameData();
+        showScreen("superSquad");
+
+        return;
+    }
+
+    if (
+        build.history.length >=
+        GAME_CONFIG.SEASON.MATCHES &&
+        build.matchNumber >
+        GAME_CONFIG.SEASON.MATCHES
+    ) {
+
+        build.season++;
+        build.matchNumber = 1;
+        build.wins = 0;
+        build.draws = 0;
+        build.losses = 0;
+        build.history = [];
+
+        saveAllGameData();
+        showScreen("rosterSeason");
+
+        return;
+    }
+
+    showScreen("mainMenu");
+}
+
+
+/* =========================================================
+   GLOBAL UI
+   ========================================================= */
+
+function updateAllUI() {
+
+    setText(
+        "pointsDisplay",
+        GAME_STATE.superSquad.points
+    );
+
+    setText(
+        "points",
+        GAME_STATE.superSquad.points
+    );
+
+    setText(
+        "coinsDisplay",
+        GAME_STATE.superSquad.coins
+    );
+
+    setText(
+        "coins",
+        GAME_STATE.superSquad.coins
+    );
+
+    updateRosterUI();
+    updateSuperSquadUI();
+    renderCollection();
+}
+
+
+/* =========================================================
+   RESET
+   ========================================================= */
+
+function resetGame() {
+
+    const confirmed =
+        window.confirm(
+            "Are you sure you want to reset all game progress?"
+        );
+
+    if (!confirmed) {
+        return;
+    }
+
+    try {
+
+        removeFromStorage(
+            GAME_CONFIG.STORAGE_KEYS.BUILD_ROSTER
+        );
+
+        removeFromStorage(
+            GAME_CONFIG.STORAGE_KEYS.SUPER_SQUAD
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Reset storage error:",
+            error
+        );
+    }
+
+    GAME_STATE.buildRoster = {
+        league: "",
+        club: "",
+        players: [],
+        season: 1,
+        matchNumber: 1,
+        points: 0,
+        wins: 0,
+        draws: 0,
+        losses: 0,
+        history: []
+    };
+
+    GAME_STATE.superSquad = {
+        teamName: "",
+        collection: [],
+        lineup: [],
+        points: 0,
+        coins: 500,
+        difficulty: "easy",
+        season: 1,
+        matchNumber: 1,
+        wins: 0,
+        draws: 0,
+        losses: 0,
+        history: []
+    };
+
+    GAME_STATE.currentMatch = null;
+
+    GAME_STATE.collectionFilter =
+        "all";
+
+    updateAllUI();
+
+    showScreen("mainMenu");
+
+    showNotification(
+        "Game reset successfully.",
+        "success"
     );
 }
 
 
 /* =========================================================
-   KEYBOARD ACCESSIBILITY
+   KEYBOARD SUPPORT
    ========================================================= */
 
 document.addEventListener(
     "keydown",
     function (event) {
 
+        if (event.key !== "Escape") {
+            return;
+        }
+
+        const modal =
+            getElement("gameModal");
+
         if (
-            event.key === "Escape"
+            modal &&
+            !modal.hidden
         ) {
-
-            const modal =
-                getElement("gameModal");
-
-            if (
-                modal &&
-                !modal.hidden
-            ) {
-                closeModal();
-            }
+            closeModal();
         }
     }
 );
 
 
 /* =========================================================
-   AUTO-SAVE
+   AUTO SAVE
    ========================================================= */
 
 window.addEventListener(
@@ -3449,10 +2759,6 @@ window.addEventListener(
 );
 
 
-/* =========================================================
-   PERIODIC AUTO-SAVE
-   ========================================================= */
-
 setInterval(
     function () {
 
@@ -3460,7 +2766,7 @@ setInterval(
             saveAllGameData();
         } catch (error) {
             console.error(
-                "Periodic save failed:",
+                "Automatic save failed:",
                 error
             );
         }
