@@ -1,0 +1,958 @@
+```javascript
+"use strict";
+
+/*
+ * Super League Soccer
+ * utils.js
+ *
+ * Shared helper, validation, storage, UI, player, rating,
+ * simulation and pack functions.
+ */
+
+(function () {
+  window.GAME_UTILS = window.GAME_UTILS || {};
+
+  /* =========================================================
+     BASIC HELPERS
+  ========================================================= */
+
+  function randomInt(min, max) {
+    min = Number(min);
+    max = Number(max);
+
+    if (!Number.isFinite(min) || !Number.isFinite(max)) {
+      return 0;
+    }
+
+    min = Math.ceil(min);
+    max = Math.floor(max);
+
+    if (max < min) {
+      var temp = min;
+      min = max;
+      max = temp;
+    }
+
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  function clamp(value, min, max) {
+    value = Number(value);
+    min = Number(min);
+    max = Number(max);
+
+    if (!Number.isFinite(value)) {
+      value = 0;
+    }
+
+    if (!Number.isFinite(min)) {
+      min = 0;
+    }
+
+    if (!Number.isFinite(max)) {
+      max = 100;
+    }
+
+    if (max < min) {
+      var temp = min;
+      min = max;
+      max = temp;
+    }
+
+    return Math.min(Math.max(value, min), max);
+  }
+
+  function safeInteger(value, fallback) {
+    var number = Number(value);
+
+    if (!Number.isFinite(number)) {
+      return Number.isFinite(Number(fallback)) ? Math.trunc(Number(fallback)) : 0;
+    }
+
+    return Math.trunc(number);
+  }
+
+  function cleanText(value, maxLength) {
+    if (value === null || value === undefined) {
+      return "";
+    }
+
+    var text = String(value)
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (Number.isFinite(Number(maxLength))) {
+      text = text.slice(0, Math.max(0, safeInteger(maxLength, 0)));
+    }
+
+    return text;
+  }
+
+  function getTimestamp() {
+    return new Date().toISOString();
+  }
+
+  /* =========================================================
+     HTML SAFETY
+  ========================================================= */
+
+  function escapeHTML(value) {
+    return String(value === null || value === undefined ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function escapeAttribute(value) {
+    return escapeHTML(value);
+  }
+
+  /* =========================================================
+     DOM HELPERS
+  ========================================================= */
+
+  function getElement(id) {
+    if (!id || typeof document === "undefined") {
+      return null;
+    }
+
+    return document.getElementById(id);
+  }
+
+  function setText(id, value) {
+    var element = getElement(id);
+
+    if (!element) {
+      return;
+    }
+
+    element.textContent = value === null || value === undefined
+      ? ""
+      : String(value);
+  }
+
+  function showElement(id) {
+    var element = getElement(id);
+
+    if (!element) {
+      return;
+    }
+
+    element.hidden = false;
+    element.style.display = "";
+  }
+
+  function hideElement(id) {
+    var element = getElement(id);
+
+    if (!element) {
+      return;
+    }
+
+    element.hidden = true;
+    element.style.display = "none";
+  }
+
+  /* =========================================================
+     NOTIFICATIONS / MODALS
+  ========================================================= */
+
+  function showNotification(message, type) {
+    var notification = getElement("notification");
+
+    if (!notification) {
+      return;
+    }
+
+    notification.textContent = cleanText(message, 500);
+    notification.className = "notification";
+
+    if (type) {
+      notification.classList.add(cleanText(type, 30));
+    }
+
+    notification.hidden = false;
+
+    clearTimeout(window.__SLS_NOTIFICATION_TIMER);
+
+    window.__SLS_NOTIFICATION_TIMER = setTimeout(function () {
+      notification.hidden = true;
+    }, 3500);
+  }
+
+  function showModal(title, body) {
+    var modal = getElement("gameModal");
+
+    if (!modal) {
+      return;
+    }
+
+    setText("modalTitle", title);
+    setText("modalBody", body);
+
+    modal.hidden = false;
+    modal.setAttribute("aria-hidden", "false");
+  }
+
+  function closeModal() {
+    var modal = getElement("gameModal");
+
+    if (!modal) {
+      return;
+    }
+
+    modal.hidden = true;
+    modal.setAttribute("aria-hidden", "true");
+  }
+
+  /* =========================================================
+     STORAGE
+  ========================================================= */
+
+  function loadFromStorage(key, fallback) {
+    if (!key || typeof window === "undefined" || !window.localStorage) {
+      return fallback;
+    }
+
+    try {
+      var raw = window.localStorage.getItem(key);
+
+      if (!raw) {
+        return fallback;
+      }
+
+      var parsed = JSON.parse(raw);
+
+      return parsed === null || parsed === undefined
+        ? fallback
+        : parsed;
+    } catch (error) {
+      console.warn("Super League Soccer: failed to load save data.", error);
+      return fallback;
+    }
+  }
+
+  function saveToStorage(key, value) {
+    if (!key || typeof window === "undefined" || !window.localStorage) {
+      return false;
+    }
+
+    try {
+      window.localStorage.setItem(key, JSON.stringify(value));
+      return true;
+    } catch (error) {
+      console.warn("Super League Soccer: failed to save data.", error);
+      return false;
+    }
+  }
+
+  function removeFromStorage(key) {
+    if (!key || typeof window === "undefined" || !window.localStorage) {
+      return false;
+    }
+
+    try {
+      window.localStorage.removeItem(key);
+      return true;
+    } catch (error) {
+      console.warn("Super League Soccer: failed to remove save data.", error);
+      return false;
+    }
+  }
+
+  /* =========================================================
+     PLAYER VALIDATION
+  ========================================================= */
+
+  function sanitizePlayer(player) {
+    if (!player || typeof player !== "object") {
+      return null;
+    }
+
+    var id = cleanText(player.id, 100);
+
+    if (!id) {
+      id = cleanText(
+        player.name + "-" + player.club + "-" + player.position,
+        100
+      ).toLowerCase().replace(/[^a-z0-9-]+/g, "-");
+    }
+
+    var rating = clamp(
+      safeInteger(player.rating, 60),
+      1,
+      99
+    );
+
+    var position = cleanText(player.position, 30) || "MID";
+
+    var rarity = cleanText(player.rarity, 20).toLowerCase();
+
+    if (!["common", "rare", "icon"].includes(rarity)) {
+      rarity = "common";
+    }
+
+    return {
+      id: id,
+      name: cleanText(player.name, 80) || "Unknown Player",
+      position: position,
+      rating: rating,
+      club: cleanText(player.club, 80) || "Unknown Club",
+      league: cleanText(player.league, 50),
+      rarity: rarity
+    };
+  }
+
+  function isValidPlayer(player) {
+    if (!player || typeof player !== "object") {
+      return false;
+    }
+
+    var sanitized = sanitizePlayer(player);
+
+    return Boolean(
+      sanitized &&
+      sanitized.id &&
+      sanitized.name &&
+      sanitized.position &&
+      sanitized.club &&
+      sanitized.rating >= 1 &&
+      sanitized.rating <= 99
+    );
+  }
+
+  function uniqueById(players) {
+    if (!Array.isArray(players)) {
+      return [];
+    }
+
+    var seen = new Set();
+    var result = [];
+
+    players.forEach(function (player) {
+      var cleanPlayer = sanitizePlayer(player);
+
+      if (!cleanPlayer || seen.has(cleanPlayer.id)) {
+        return;
+      }
+
+      seen.add(cleanPlayer.id);
+      result.push(cleanPlayer);
+    });
+
+    return result;
+  }
+
+  function findPlayerById(players, playerId) {
+    if (!Array.isArray(players) || !playerId) {
+      return null;
+    }
+
+    var id = String(playerId);
+
+    for (var i = 0; i < players.length; i += 1) {
+      if (players[i] && String(players[i].id) === id) {
+        return sanitizePlayer(players[i]);
+      }
+    }
+
+    return null;
+  }
+
+  function getPlayersByClub(players, club) {
+    if (!Array.isArray(players) || !club) {
+      return [];
+    }
+
+    var targetClub = cleanText(club, 100).toLowerCase();
+
+    return players
+      .map(sanitizePlayer)
+      .filter(function (player) {
+        return (
+          player &&
+          player.club.toLowerCase() === targetClub
+        );
+      });
+  }
+
+  /* =========================================================
+     TEAM NAME VALIDATION
+  ========================================================= */
+
+  var DEFAULT_BAD_WORDS = [
+    "fuck",
+    "fucker",
+    "fucking",
+    "shit",
+    "shitter",
+    "bitch",
+    "bastard",
+    "cunt",
+    "dick",
+    "dickhead",
+    "piss",
+    "pussy",
+    "cock",
+    "slut",
+    "whore",
+    "nigger",
+    "nigga",
+    "retard"
+  ];
+
+  function validateTeamName(name) {
+    var cleaned = cleanText(name, 30);
+
+    if (!cleaned) {
+      return {
+        valid: false,
+        message: "Please enter a team name."
+      };
+    }
+
+    if (cleaned.length < 2) {
+      return {
+        valid: false,
+        message: "Team name must be at least 2 characters."
+      };
+    }
+
+    if (cleaned.length > 30) {
+      return {
+        valid: false,
+        message: "Team name is too long."
+      };
+    }
+
+    if (!/^[a-zA-Z0-9À-ÿ '&.-]+$/.test(cleaned)) {
+      return {
+        valid: false,
+        message: "Team name contains unsupported characters."
+      };
+    }
+
+    var lowerName = cleaned.toLowerCase();
+
+    for (var i = 0; i < DEFAULT_BAD_WORDS.length; i += 1) {
+      if (lowerName.includes(DEFAULT_BAD_WORDS[i])) {
+        return {
+          valid: false,
+          message: "Please choose a family-friendly team name."
+        };
+      }
+    }
+
+    return {
+      valid: true,
+      name: cleaned,
+      message: ""
+    };
+  }
+
+  /* =========================================================
+     SQUAD RATINGS
+  ========================================================= */
+
+  function calculateSquadRating(players) {
+    if (!Array.isArray(players) || players.length === 0) {
+      return 0;
+    }
+
+    var validPlayers = players
+      .map(sanitizePlayer)
+      .filter(Boolean);
+
+    if (validPlayers.length === 0) {
+      return 0;
+    }
+
+    var total = validPlayers.reduce(function (sum, player) {
+      return sum + player.rating;
+    }, 0);
+
+    return Math.round(total / validPlayers.length);
+  }
+
+  /* =========================================================
+     CLUB RATINGS
+  ========================================================= */
+
+  function getClubRating(club) {
+    var config = window.GAME_CONFIG || {};
+    var ratings = config.clubRatings || {};
+
+    if (!club) {
+      return 75;
+    }
+
+    var key = cleanText(club, 100);
+
+    if (Object.prototype.hasOwnProperty.call(ratings, key)) {
+      return clamp(safeInteger(ratings[key], 75), 1, 99);
+    }
+
+    return 75;
+  }
+
+  function getRandomOpponentClub(excludedClub) {
+    var config = window.GAME_CONFIG || {};
+
+    var clubs = [];
+
+    if (Array.isArray(config.clubs)) {
+      clubs = config.clubs.slice();
+    } else {
+      if (Array.isArray(config.premierLeagueClubs)) {
+        clubs = clubs.concat(config.premierLeagueClubs);
+      }
+
+      if (Array.isArray(config.laLigaClubs)) {
+        clubs = clubs.concat(config.laLigaClubs);
+      }
+    }
+
+    clubs = clubs
+      .map(function (club) {
+        if (typeof club === "string") {
+          return club;
+        }
+
+        if (club && club.name) {
+          return club.name;
+        }
+
+        return "";
+      })
+      .filter(Boolean);
+
+    var filtered = clubs.filter(function (club) {
+      return club !== excludedClub;
+    });
+
+    if (filtered.length === 0) {
+      return "League XI";
+    }
+
+    return filtered[randomInt(0, filtered.length - 1)];
+  }
+
+  /* =========================================================
+     OPPONENT RATINGS
+  ========================================================= */
+
+  function getOpponentRating(difficulty) {
+    var config = window.GAME_CONFIG || {};
+    var ranges = config.opponentRatingRanges || {};
+
+    var selectedRange = ranges[difficulty];
+
+    if (
+      !Array.isArray(selectedRange) ||
+      selectedRange.length < 2
+    ) {
+      if (String(difficulty).toLowerCase() === "hard") {
+        return randomInt(82, 95);
+      }
+
+      return randomInt(72, 84);
+    }
+
+    return randomInt(
+      safeInteger(selectedRange[0], 70),
+      safeInteger(selectedRange[1], 90)
+    );
+  }
+
+  /* =========================================================
+     MATCH SIMULATION
+  ========================================================= */
+
+  function calculateExpectedGoals(ratingDifference) {
+    var difference = clamp(ratingDifference, -30, 30);
+
+    var base = 1.2;
+    var adjustment = difference * 0.035;
+
+    return clamp(base + adjustment, 0.2, 2.5);
+  }
+
+  function randomGoals(expectedGoals) {
+    var expected = clamp(Number(expectedGoals), 0.1, 4);
+
+    var roll = Math.random();
+
+    if (roll < 0.05) {
+      return 0;
+    }
+
+    if (roll < 0.55) {
+      return clamp(Math.round(expected), 0, 5);
+    }
+
+    if (roll < 0.85) {
+      return clamp(
+        Math.round(expected + (Math.random() * 1.5 - 0.5)),
+        0,
+        5
+      );
+    }
+
+    return clamp(
+      Math.round(expected + Math.random() * 2),
+      0,
+      6
+    );
+  }
+
+  function simulateScore(homeRating, awayRating) {
+    homeRating = clamp(safeInteger(homeRating, 75), 1, 99);
+    awayRating = clamp(safeInteger(awayRating, 75), 1, 99);
+
+    var difference = homeRating - awayRating;
+
+    var homeExpected = calculateExpectedGoals(difference);
+    var awayExpected = calculateExpectedGoals(-difference);
+
+    var homeScore = randomGoals(homeExpected);
+    var awayScore = randomGoals(awayExpected);
+
+    /*
+     * Small home advantage.
+     */
+    if (
+      homeScore === awayScore &&
+      Math.random() < 0.45
+    ) {
+      if (homeRating >= awayRating) {
+        homeScore += 1;
+      } else {
+        awayScore += 1;
+      }
+    }
+
+    return {
+      homeScore: clamp(homeScore, 0, 6),
+      awayScore: clamp(awayScore, 0, 6)
+    };
+  }
+
+  /* =========================================================
+     RESULT / POINTS
+  ========================================================= */
+
+  function getResultLabel(homeScore, awayScore) {
+    homeScore = safeInteger(homeScore, 0);
+    awayScore = safeInteger(awayScore, 0);
+
+    if (homeScore > awayScore) {
+      return "WIN";
+    }
+
+    if (homeScore < awayScore) {
+      return "LOSS";
+    }
+
+    return "DRAW";
+  }
+
+  function getResultPoints(result, mode, difficulty) {
+    var config = window.GAME_CONFIG || {};
+    var points = config.points || {};
+
+    var cleanMode = String(mode || "buildRoster").toLowerCase();
+    var cleanDifficulty = String(difficulty || "easy").toLowerCase();
+
+    var resultKey = String(result || "").toLowerCase();
+
+    if (cleanMode === "supersquad" || cleanMode === "super squad") {
+      var superPoints = points.superSquad || {};
+
+      if (superPoints[cleanDifficulty]) {
+        return safeInteger(
+          superPoints[cleanDifficulty][resultKey],
+          0
+        );
+      }
+
+      if (cleanDifficulty === "hard") {
+        if (resultKey === "win") return 200;
+        if (resultKey === "draw") return 100;
+        return 0;
+      }
+
+      if (resultKey === "win") return 100;
+      if (resultKey === "draw") return 50;
+
+      return 0;
+    }
+
+    var rosterPoints = points.buildRoster || {};
+
+    if (Object.prototype.hasOwnProperty.call(rosterPoints, resultKey)) {
+      return safeInteger(rosterPoints[resultKey], 0);
+    }
+
+    if (resultKey === "win") return 100;
+    if (resultKey === "draw") return 50;
+
+    return 0;
+  }
+
+  /* =========================================================
+     PACK SYSTEM
+  ========================================================= */
+
+  function getPackOdds(packType) {
+    var config = window.GAME_CONFIG || {};
+    var odds = config.packOdds || {};
+
+    var type = String(packType || "bronze").toLowerCase();
+
+    if (odds[type]) {
+      return odds[type];
+    }
+
+    if (type === "gold") {
+      return {
+        icon: 10,
+        rare: 30,
+        common: 60
+      };
+    }
+
+    if (type === "icon") {
+      return {
+        icon: 100,
+        rare: 0,
+        common: 0
+      };
+    }
+
+    return {
+      icon: 4,
+      rare: 20,
+      common: 76
+    };
+  }
+
+  function chooseRarity(packType) {
+    var odds = getPackOdds(packType);
+    var roll = Math.random() * 100;
+
+    if (roll < odds.icon) {
+      return "icon";
+    }
+
+    if (roll < odds.icon + odds.rare) {
+      return "rare";
+    }
+
+    return "common";
+  }
+
+  function getConfiguredIcons() {
+    var config = window.GAME_CONFIG || {};
+
+    if (!Array.isArray(config.icons)) {
+      return [];
+    }
+
+    return config.icons
+      .map(function (icon) {
+        return sanitizePlayer({
+          id: icon.id || ("icon-" + icon.name),
+          name: icon.name,
+          position: icon.position || "LEGEND",
+          rating: icon.rating || 95,
+          club: icon.club || "Icons",
+          league: "Icons",
+          rarity: "icon"
+        });
+      })
+      .filter(Boolean);
+  }
+
+  function getConfiguredPlayers() {
+    var config = window.GAME_CONFIG || {};
+
+    if (!Array.isArray(config.players)) {
+      return [];
+    }
+
+    return config.players
+      .map(sanitizePlayer)
+      .filter(Boolean);
+  }
+
+  function createFallbackPlayer(index, rarity) {
+    var names = [
+      "Academy Star",
+      "League Player",
+      "Rising Star",
+      "Club Hero",
+      "Footballer",
+      "Squad Player"
+    ];
+
+    var baseRating = 70;
+
+    if (rarity === "rare") {
+      baseRating = 82;
+    }
+
+    if (rarity === "icon") {
+      baseRating = 95;
+    }
+
+    return sanitizePlayer({
+      id: "fallback-" + rarity + "-" + index + "-" + Date.now(),
+      name: names[index % names.length],
+      position: ["GK", "DEF", "MID", "FWD"][index % 4],
+      rating: clamp(baseRating + randomInt(-3, 4), 1, 99),
+      club: "Super League",
+      league: "Super League",
+      rarity: rarity
+    });
+  }
+
+  function generatePack(packType) {
+    var type = String(packType || "bronze").toLowerCase();
+
+    var config = window.GAME_CONFIG || {};
+    var packSizes = config.packSizes || {};
+
+    var count = safeInteger(packSizes[type], 5);
+
+    if (type === "icon") {
+      count = 1;
+    }
+
+    count = clamp(count, 1, 20);
+
+    var icons = getConfiguredIcons();
+    var players = getConfiguredPlayers();
+
+    var cards = [];
+
+    for (var i = 0; i < count; i += 1) {
+      var rarity = chooseRarity(type);
+      var card = null;
+
+      if (rarity === "icon" && icons.length > 0) {
+        card = icons[randomInt(0, icons.length - 1)];
+      } else {
+        var matchingPlayers = players.filter(function (player) {
+          return player.rarity === rarity;
+        });
+
+        if (matchingPlayers.length > 0) {
+          card = matchingPlayers[
+            randomInt(0, matchingPlayers.length - 1)
+          ];
+        }
+      }
+
+      if (!card) {
+        card = createFallbackPlayer(i, rarity);
+      }
+
+      cards.push(sanitizePlayer(card));
+    }
+
+    return cards.filter(Boolean);
+  }
+
+  /* =========================================================
+     EXPORTS
+  ========================================================= */
+
+  window.GAME_UTILS.randomInt = randomInt;
+  window.GAME_UTILS.clamp = clamp;
+  window.GAME_UTILS.safeInteger = safeInteger;
+  window.GAME_UTILS.cleanText = cleanText;
+  window.GAME_UTILS.getTimestamp = getTimestamp;
+
+  window.GAME_UTILS.escapeHTML = escapeHTML;
+  window.GAME_UTILS.escapeAttribute = escapeAttribute;
+
+  window.GAME_UTILS.getElement = getElement;
+  window.GAME_UTILS.setText = setText;
+  window.GAME_UTILS.showElement = showElement;
+  window.GAME_UTILS.hideElement = hideElement;
+
+  window.GAME_UTILS.showNotification = showNotification;
+  window.GAME_UTILS.showModal = showModal;
+  window.GAME_UTILS.closeModal = closeModal;
+
+  window.GAME_UTILS.loadFromStorage = loadFromStorage;
+  window.GAME_UTILS.saveToStorage = saveToStorage;
+  window.GAME_UTILS.removeFromStorage = removeFromStorage;
+
+  window.GAME_UTILS.sanitizePlayer = sanitizePlayer;
+  window.GAME_UTILS.isValidPlayer = isValidPlayer;
+  window.GAME_UTILS.uniqueById = uniqueById;
+  window.GAME_UTILS.findPlayerById = findPlayerById;
+  window.GAME_UTILS.getPlayersByClub = getPlayersByClub;
+
+  window.GAME_UTILS.validateTeamName = validateTeamName;
+
+  window.GAME_UTILS.calculateSquadRating = calculateSquadRating;
+  window.GAME_UTILS.getClubRating = getClubRating;
+  window.GAME_UTILS.getRandomOpponentClub = getRandomOpponentClub;
+  window.GAME_UTILS.getOpponentRating = getOpponentRating;
+
+  window.GAME_UTILS.simulateScore = simulateScore;
+  window.GAME_UTILS.getResultLabel = getResultLabel;
+  window.GAME_UTILS.getResultPoints = getResultPoints;
+
+  window.GAME_UTILS.getPackOdds = getPackOdds;
+  window.GAME_UTILS.generatePack = generatePack;
+
+  /*
+   * Expose functions globally because game.js calls them directly.
+   */
+  window.randomInt = randomInt;
+  window.clamp = clamp;
+  window.safeInteger = safeInteger;
+  window.cleanText = cleanText;
+  window.getTimestamp = getTimestamp;
+
+  window.escapeHTML = escapeHTML;
+  window.escapeAttribute = escapeAttribute;
+
+  window.getElement = getElement;
+  window.setText = setText;
+  window.showElement = showElement;
+  window.hideElement = hideElement;
+
+  window.showNotification = showNotification;
+  window.showModal = showModal;
+  window.closeModal = closeModal;
+
+  window.loadFromStorage = loadFromStorage;
+  window.saveToStorage = saveToStorage;
+  window.removeFromStorage = removeFromStorage;
+
+  window.sanitizePlayer = sanitizePlayer;
+  window.isValidPlayer = isValidPlayer;
+  window.uniqueById = uniqueById;
+  window.findPlayerById = findPlayerById;
+  window.getPlayersByClub = getPlayersByClub;
+
+  window.validateTeamName = validateTeamName;
+
+  window.calculateSquadRating = calculateSquadRating;
+  window.getClubRating = getClubRating;
+  window.getRandomOpponentClub = getRandomOpponentClub;
+  window.getOpponentRating = getOpponentRating;
+
+  window.simulateScore = simulateScore;
+  window.getResultLabel = getResultLabel;
+  window.getResultPoints = getResultPoints;
+
+  window.generatePack = generatePack;
+})();
+```
