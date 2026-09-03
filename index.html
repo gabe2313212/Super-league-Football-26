@@ -1,0 +1,1304 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta
+        name="description"
+        content="Super League Soccer - Build squads, collect cards and dominate the league."
+    >
+
+    <title>Super League Soccer</title>
+
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+    <!-- =========================================================
+         APP
+    ========================================================== -->
+
+    <div id="app">
+
+        <!-- =====================================================
+             HEADER
+        ====================================================== -->
+
+        <header class="game-header">
+
+            <div class="brand">
+                <div class="brand-ball">⚽</div>
+
+                <div>
+                    <h1>Super League Soccer</h1>
+                    <p>Build. Collect. Compete.</p>
+                </div>
+            </div>
+
+            <div class="header-currencies">
+
+                <div class="currency">
+                    <span>🏆</span>
+                    <strong id="headerPoints">0</strong>
+                    <small>Points</small>
+                </div>
+
+                <div class="currency">
+                    <span>🪙</span>
+                    <strong id="headerCoins">500</strong>
+                    <small>Coins</small>
+                </div>
+
+            </div>
+
+        </header>
+
+
+        <!-- =====================================================
+             MAIN
+        ====================================================== -->
+
+        <main id="game">
+
+            <!-- =================================================
+                 MAIN MENU
+            ================================================== -->
+
+            <section
+                id="mainMenu"
+                class="screen active"
+            >
+
+                <div class="hero">
+
+                    <div class="hero-ball">
+                        ⚽
+                    </div>
+
+                    <h2>
+                        SUPER LEAGUE SOCCER
+                    </h2>
+
+                    <p>
+                        Build your squad. Collect legends.
+                        Dominate the league.
+                    </p>
+
+                </div>
+
+
+                <div class="menu-grid">
+
+                    <button
+                        id="buildRosterButton"
+                        class="menu-card"
+                        type="button"
+                    >
+
+                        <span class="menu-icon">🏆</span>
+
+                        <strong>
+                            Build a Roster
+                        </strong>
+
+                        <small>
+                            Pick 6 players from a real club
+                            and compete in a 19-match season.
+                        </small>
+
+                    </button>
+
+
+                    <button
+                        id="superSquadButton"
+                        class="menu-card"
+                        type="button"
+                    >
+
+                        <span class="menu-icon">⭐</span>
+
+                        <strong>
+                            Super Squad
+                        </strong>
+
+                        <small>
+                            Build your ultimate 11-player
+                            football team.
+                        </small>
+
+                    </button>
+
+
+                    <button
+                        id="collectionButton"
+                        class="menu-card"
+                        type="button"
+                    >
+
+                        <span class="menu-icon">🎴</span>
+
+                        <strong>
+                            Collection
+                        </strong>
+
+                        <small>
+                            View your Common, Rare and
+                            Icon players.
+                        </small>
+
+                    </button>
+
+
+                    <button
+                        id="settingsButton"
+                        class="menu-card"
+                        type="button"
+                    >
+
+                        <span class="menu-icon">⚙️</span>
+
+                        <strong>
+                            Settings
+                        </strong>
+
+                        <small>
+                            Save, reset and manage your game.
+                        </small>
+
+                    </button>
+
+                </div>
+
+            </section>
+
+
+            <!-- =================================================
+                 BUILD A ROSTER
+            ================================================== -->
+
+            <section
+                id="buildRosterScreen"
+                class="screen"
+            >
+
+                <div class="screen-header">
+
+                    <button
+                        class="back-button"
+                        data-back="mainMenu"
+                        type="button"
+                    >
+                        ← Back
+                    </button>
+
+                    <div>
+                        <h2>Build a Roster</h2>
+
+                        <p>
+                            Build a 6-player squad.
+                        </p>
+                    </div>
+
+                </div>
+
+
+                <!-- League selection -->
+
+                <div class="panel">
+
+                    <h3>
+                        Choose League
+                    </h3>
+
+                    <div class="league-choice">
+
+                        <button
+                            id="buildPremierLeagueButton"
+                            class="league-button"
+                            type="button"
+                            data-league="Premier League"
+                        >
+                            🇬🇧 Premier League
+                        </button>
+
+                        <button
+                            id="buildLaLigaButton"
+                            class="league-button"
+                            type="button"
+                            data-league="LaLiga"
+                        >
+                            🇪🇸 LaLiga
+                        </button>
+
+                    </div>
+
+                </div>
+
+
+                <!-- Club selection -->
+
+                <div
+                    id="buildClubPanel"
+                    class="panel hidden"
+                >
+
+                    <h3>
+                        Choose Club
+                    </h3>
+
+                    <select
+                        id="clubSelect"
+                    >
+
+                        <option value="">
+                            Select a club
+                        </option>
+
+                    </select>
+
+                    <button
+                        id="loadClubButton"
+                        class="primary-button"
+                        type="button"
+                    >
+                        Load Players
+                    </button>
+
+                </div>
+
+
+                <!-- Player selection -->
+
+                <div
+                    id="rosterPlayerPanel"
+                    class="panel hidden"
+                >
+
+                    <div class="panel-title">
+
+                        <div>
+                            <h3>
+                                Choose Your Players
+                            </h3>
+
+                            <p>
+                                Select exactly 6 players.
+                            </p>
+                        </div>
+
+                        <strong id="rosterCount">
+                            0 / 6
+                        </strong>
+
+                    </div>
+
+
+                    <div
+                        id="rosterPlayers"
+                        class="player-grid"
+                    ></div>
+
+
+                    <button
+                        id="startRosterSeasonButton"
+                        class="primary-button"
+                        type="button"
+                        disabled
+                    >
+                        Start 19-Match Season
+                    </button>
+
+                </div>
+
+
+                <!-- Season -->
+
+                <div
+                    id="rosterSeasonPanel"
+                    class="hidden"
+                >
+
+                    <div class="season-header">
+
+                        <div>
+                            <h3>
+                                Build a Roster Season
+                            </h3>
+
+                            <p>
+                                Match
+                                <span id="rosterMatchNumber">
+                                    1
+                                </span>
+                                of 19
+                            </p>
+                        </div>
+
+                        <div class="season-points">
+
+                            <strong id="rosterSeasonPoints">
+                                0
+                            </strong>
+
+                            <small>
+                                Points
+                            </small>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="record-grid">
+
+                        <div>
+                            <strong id="rosterWins">
+                                0
+                            </strong>
+
+                            <span>
+                                Wins
+                            </span>
+                        </div>
+
+                        <div>
+                            <strong id="rosterDraws">
+                                0
+                            </strong>
+
+                            <span>
+                                Draws
+                            </span>
+                        </div>
+
+                        <div>
+                            <strong id="rosterLosses">
+                                0
+                            </strong>
+
+                            <span>
+                                Losses
+                            </span>
+                        </div>
+
+                    </div>
+
+
+                    <div
+                        id="rosterNextMatch"
+                        class="match-preview"
+                    >
+                        No match loaded.
+                    </div>
+
+
+                    <div class="match-buttons">
+
+                        <button
+                            id="playRosterMatchButton"
+                            class="primary-button"
+                            type="button"
+                        >
+                            ⚽ Play Match
+                        </button>
+
+                        <button
+                            id="simulateRosterSeasonButton"
+                            class="secondary-button"
+                            type="button"
+                        >
+                            ⏩ Go to Presentations
+                        </button>
+
+                    </div>
+
+
+                    <div class="panel">
+
+                        <h3>
+                            Match History
+                        </h3>
+
+                        <div
+                            id="rosterMatchHistory"
+                            class="match-history"
+                        ></div>
+
+                    </div>
+
+
+                    <div class="panel">
+
+                        <h3>
+                            League Standings
+                        </h3>
+
+                        <div
+                            id="rosterLeagueTable"
+                            class="league-table"
+                        ></div>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+
+            <!-- =================================================
+                 SUPER SQUAD
+            ================================================== -->
+
+            <section
+                id="superSquadScreen"
+                class="screen"
+            >
+
+                <div class="screen-header">
+
+                    <button
+                        class="back-button"
+                        data-back="mainMenu"
+                        type="button"
+                    >
+                        ← Back
+                    </button>
+
+                    <div>
+                        <h2>
+                            Super Squad
+                        </h2>
+
+                        <p>
+                            Build your ultimate team.
+                        </p>
+                    </div>
+
+                </div>
+
+
+                <!-- Create club -->
+
+                <div
+                    id="createSquadPanel"
+                    class="panel"
+                >
+
+                    <h3>
+                        Create Your Club
+                    </h3>
+
+                    <label for="teamName">
+                        Team Name
+                    </label>
+
+                    <input
+                        id="teamName"
+                        type="text"
+                        maxlength="30"
+                        autocomplete="off"
+                        placeholder="Enter your team name"
+                    >
+
+                    <button
+                        id="createTeamButton"
+                        class="primary-button"
+                        type="button"
+                    >
+                        Create Club
+                    </button>
+
+                </div>
+
+
+                <!-- Super Squad dashboard -->
+
+                <div
+                    id="superSquadDashboard"
+                    class="hidden"
+                >
+
+                    <div class="club-banner">
+
+                        <div>
+
+                            <small>
+                                YOUR CLUB
+                            </small>
+
+                            <h2 id="superSquadTeamName">
+                                Your Team
+                            </h2>
+
+                        </div>
+
+                        <div>
+
+                            <strong id="superSquadRating">
+                                0
+                            </strong>
+
+                            <small>
+                                OVR
+                            </small>
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- Resources -->
+
+                    <div class="resource-grid">
+
+                        <div class="resource-card">
+
+                            <span>🏆</span>
+
+                            <strong id="superSquadPoints">
+                                0
+                            </strong>
+
+                            <small>
+                                Points
+                            </small>
+
+                        </div>
+
+                        <div class="resource-card">
+
+                            <span>🎴</span>
+
+                            <strong id="collectionCount">
+                                0
+                            </strong>
+
+                            <small>
+                                Cards
+                            </small>
+
+                        </div>
+
+                        <div class="resource-card">
+
+                            <span>📅</span>
+
+                            <strong id="superSquadMatchNumber">
+                                1 / 19
+                            </strong>
+
+                            <small>
+                                Season
+                            </small>
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- Difficulty -->
+
+                    <div class="panel">
+
+                        <h3>
+                            Difficulty
+                        </h3>
+
+                        <div class="difficulty-buttons">
+
+                            <button
+                                id="easyDifficultyButton"
+                                class="difficulty-button active"
+                                data-difficulty="easy"
+                                type="button"
+                            >
+                                🟢 Easy
+                                <small>
+                                    72–84 OVR
+                                </small>
+                            </button>
+
+                            <button
+                                id="hardDifficultyButton"
+                                class="difficulty-button"
+                                data-difficulty="hard"
+                                type="button"
+                            >
+                                🔴 Hard
+                                <small>
+                                    82–95 OVR
+                                </small>
+                            </button>
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- Squad -->
+
+                    <div class="panel">
+
+                        <div class="panel-title">
+
+                            <div>
+
+                                <h3>
+                                    Starting XI
+                                </h3>
+
+                                <p>
+                                    You need exactly 11 players.
+                                </p>
+
+                            </div>
+
+                            <strong id="startingXIcount">
+                                0 / 11
+                            </strong>
+
+                        </div>
+
+
+                        <div
+                            id="startingXI"
+                            class="player-grid"
+                        ></div>
+
+
+                        <button
+                            id="playSuperSquadMatchButton"
+                            class="primary-button"
+                            type="button"
+                            disabled
+                        >
+                            ⚽ Play Match
+                        </button>
+
+                    </div>
+
+
+                    <!-- Pack Store -->
+
+                    <div class="panel">
+
+                        <h3>
+                            Pack Store
+                        </h3>
+
+                        <p>
+                            Spend your points to collect players.
+                        </p>
+
+
+                        <div class="pack-grid">
+
+                            <button
+                                id="bronzePackButton"
+                                class="pack-card bronze"
+                                type="button"
+                            >
+
+                                <span>🥉</span>
+
+                                <strong>
+                                    Bronze Pack
+                                </strong>
+
+                                <small>
+                                    50 Points
+                                </small>
+
+                                <em>
+                                    5 Cards
+                                </em>
+
+                            </button>
+
+
+                            <button
+                                id="goldPackButton"
+                                class="pack-card gold"
+                                type="button"
+                            >
+
+                                <span>🥇</span>
+
+                                <strong>
+                                    Gold Pack
+                                </strong>
+
+                                <small>
+                                    100 Points
+                                </small>
+
+                                <em>
+                                    5 Cards
+                                </em>
+
+                            </button>
+
+
+                            <button
+                                id="iconPackButton"
+                                class="pack-card icon"
+                                type="button"
+                            >
+
+                                <span>👑</span>
+
+                                <strong>
+                                    Icon Pack
+                                </strong>
+
+                                <small>
+                                    1,000 Points
+                                </small>
+
+                                <em>
+                                    1 Guaranteed Icon
+                                </em>
+
+                            </button>
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- Super Squad match -->
+
+                    <div class="panel">
+
+                        <h3>
+                            Next Match
+                        </h3>
+
+                        <div
+                            id="superSquadOpponent"
+                            class="match-preview"
+                        >
+                            No opponent selected.
+                        </div>
+
+                    </div>
+
+
+                    <!-- Super Squad history -->
+
+                    <div class="panel">
+
+                        <h3>
+                            Match History
+                        </h3>
+
+                        <div
+                            id="superSquadMatchHistory"
+                            class="match-history"
+                        ></div>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+
+            <!-- =================================================
+                 COLLECTION
+            ================================================== -->
+
+            <section
+                id="collectionScreen"
+                class="screen"
+            >
+
+                <div class="screen-header">
+
+                    <button
+                        class="back-button"
+                        data-back="mainMenu"
+                        type="button"
+                    >
+                        ← Back
+                    </button>
+
+                    <div>
+                        <h2>
+                            Collection
+                        </h2>
+
+                        <p>
+                            Your football card collection.
+                        </p>
+                    </div>
+
+                </div>
+
+
+                <div class="collection-summary">
+
+                    <div>
+                        <strong id="totalCards">
+                            0
+                        </strong>
+
+                        <span>
+                            Total Cards
+                        </span>
+                    </div>
+
+                    <div>
+                        <strong id="commonCards">
+                            0
+                        </strong>
+
+                        <span>
+                            Common
+                        </span>
+                    </div>
+
+                    <div>
+                        <strong id="rareCards">
+                            0
+                        </strong>
+
+                        <span>
+                            Rare
+                        </span>
+                    </div>
+
+                    <div>
+                        <strong id="iconCards">
+                            0
+                        </strong>
+
+                        <span>
+                            Icons
+                        </span>
+                    </div>
+
+                </div>
+
+
+                <div class="collection-filters">
+
+                    <button
+                        class="filter-button active"
+                        data-filter="all"
+                        type="button"
+                    >
+                        All
+                    </button>
+
+                    <button
+                        class="filter-button"
+                        data-filter="common"
+                        type="button"
+                    >
+                        ⚪ Common
+                    </button>
+
+                    <button
+                        class="filter-button"
+                        data-filter="rare"
+                        type="button"
+                    >
+                        💎 Rare
+                    </button>
+
+                    <button
+                        class="filter-button"
+                        data-filter="icon"
+                        type="button"
+                    >
+                        👑 Icons
+                    </button>
+
+                </div>
+
+
+                <div
+                    id="collectionPlayers"
+                    class="player-grid"
+                ></div>
+
+            </section>
+
+
+            <!-- =================================================
+                 MATCH SCREEN
+            ================================================== -->
+
+            <section
+                id="matchScreen"
+                class="screen"
+            >
+
+                <div class="screen-header">
+
+                    <button
+                        id="matchBackButton"
+                        class="back-button"
+                        type="button"
+                    >
+                        ← Back
+                    </button>
+
+                    <div>
+
+                        <h2>
+                            Match Day
+                        </h2>
+
+                        <p id="matchCompetition">
+                            Super League
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <div class="scoreboard">
+
+                    <div class="score-team">
+
+                        <span id="homeTeamName">
+                            Your Team
+                        </span>
+
+                        <strong id="homeScore">
+                            0
+                        </strong>
+
+                    </div>
+
+
+                    <div class="match-clock">
+
+                        <strong id="matchMinute">
+                            0'
+                        </strong>
+
+                        <small>
+                            MATCH
+                        </small>
+
+                    </div>
+
+
+                    <div class="score-team">
+
+                        <span id="awayTeamName">
+                            Opponent
+                        </span>
+
+                        <strong id="awayScore">
+                            0
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <div class="match-info">
+
+                    <div>
+                        <span>🏟️</span>
+                        <strong id="matchVenue">
+                            Stadium
+                        </strong>
+                    </div>
+
+                    <div>
+                        <span>⭐</span>
+                        <strong id="homeRating">
+                            0
+                        </strong>
+                    </div>
+
+                    <div>
+                        <span>⭐</span>
+                        <strong id="awayRating">
+                            0
+                        </strong>
+                    </div>
+
+                </div>
+
+
+                <div
+                    id="matchEvents"
+                    class="match-events"
+                ></div>
+
+
+                <div
+                    id="matchResult"
+                    class="match-result hidden"
+                ></div>
+
+
+                <button
+                    id="simulateMatchButton"
+                    class="primary-button"
+                    type="button"
+                >
+                    ▶ Simulate Match
+                </button>
+
+            </section>
+
+
+            <!-- =================================================
+                 SEASON PRESENTATION
+            ================================================== -->
+
+            <section
+                id="presentationScreen"
+                class="screen"
+            >
+
+                <div class="presentation">
+
+                    <div class="presentation-icon">
+                        🏆
+                    </div>
+
+                    <h2>
+                        Season Complete
+                    </h2>
+
+                    <p id="presentationTeamName">
+                        Your Team
+                    </p>
+
+
+                    <div class="presentation-record">
+
+                        <div>
+
+                            <strong id="presentationWins">
+                                0
+                            </strong>
+
+                            <span>
+                                Wins
+                            </span>
+
+                        </div>
+
+                        <div>
+
+                            <strong id="presentationDraws">
+                                0
+                            </strong>
+
+                            <span>
+                                Draws
+                            </span>
+
+                        </div>
+
+                        <div>
+
+                            <strong id="presentationLosses">
+                                0
+                            </strong>
+
+                            <span>
+                                Losses
+                            </span>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="presentation-points">
+
+                        <small>
+                            TOTAL POINTS
+                        </small>
+
+                        <strong id="presentationPoints">
+                            0
+                        </strong>
+
+                    </div>
+
+
+                    <div
+                        id="presentationResults"
+                        class="presentation-results"
+                    ></div>
+
+
+                    <button
+                        id="newSeasonButton"
+                        class="primary-button"
+                        type="button"
+                    >
+                        Start New Season
+                    </button>
+
+                    <button
+                        id="presentationMenuButton"
+                        class="secondary-button"
+                        type="button"
+                    >
+                        Main Menu
+                    </button>
+
+                </div>
+
+            </section>
+
+
+            <!-- =================================================
+                 SETTINGS
+            ================================================== -->
+
+            <section
+                id="settingsScreen"
+                class="screen"
+            >
+
+                <div class="screen-header">
+
+                    <button
+                        class="back-button"
+                        data-back="mainMenu"
+                        type="button"
+                    >
+                        ← Back
+                    </button>
+
+                    <div>
+
+                        <h2>
+                            Settings
+                        </h2>
+
+                        <p>
+                            Manage Super League Soccer.
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <div class="panel settings-panel">
+
+                    <button
+                        id="saveGameButton"
+                        class="secondary-button"
+                        type="button"
+                    >
+                        💾 Save Game
+                    </button>
+
+
+                    <button
+                        id="resetGameButton"
+                        class="danger-button"
+                        type="button"
+                    >
+                        🗑️ Reset All Game Data
+                    </button>
+
+                </div>
+
+
+                <div class="panel">
+
+                    <h3>
+                        Game Information
+                    </h3>
+
+                    <p>
+                        Super League Soccer
+                    </p>
+
+                    <p>
+                        Build a Roster • Super Squad •
+                        Card Collection • Seasons
+                    </p>
+
+                    <p>
+                        Version 1.0
+                    </p>
+
+                </div>
+
+            </section>
+
+        </main>
+
+
+        <!-- =====================================================
+             NOTIFICATION
+        ====================================================== -->
+
+        <div
+            id="notification"
+            class="notification hidden"
+            role="alert"
+            aria-live="polite"
+        ></div>
+
+
+        <!-- =====================================================
+             MODAL
+        ====================================================== -->
+
+        <div
+            id="gameModal"
+            class="modal hidden"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="modalTitle"
+        >
+
+            <div class="modal-content">
+
+                <button
+                    id="closeModalButton"
+                    class="modal-close"
+                    type="button"
+                    aria-label="Close"
+                >
+                    ×
+                </button>
+
+                <h2 id="modalTitle">
+                    Super League Soccer
+                </h2>
+
+                <div id="modalBody"></div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- =========================================================
+         JAVASCRIPT FILES
+    ========================================================== -->
+
+    <script src="config.js"></script>
+    <script src="utils.js"></script>
+    <script src="api.js"></script>
+    <script src="game.js"></script>
+
+</body>
+</html>
+```
