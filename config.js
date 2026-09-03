@@ -1,4 +1,4 @@
-```javascript
+
 /* =========================================================
    SUPER LEAGUE SOCCER
    config.js
