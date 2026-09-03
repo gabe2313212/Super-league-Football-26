@@ -1,0 +1,488 @@
+```javascript
+"use strict";
+
+/*
+ * SUPER LEAGUE SOCCER
+ * config.js
+ *
+ * Main game settings and rules.
+ */
+
+window.GAME_CONFIG = {
+  version: "1.0.0",
+  gameName: "Super League Soccer",
+
+  /* =========================
+     SEASON SETTINGS
+  ========================= */
+
+  seasonLength: 19,
+
+  buildRosterPlayersRequired: 6,
+  superSquadPlayersRequired: 11,
+
+  /* =========================
+     POINTS
+  ========================= */
+
+  points: {
+    buildRoster: {
+      win: 100,
+      draw: 50,
+      loss: 0
+    },
+
+    superSquad: {
+      easy: {
+        win: 100,
+        draw: 50,
+        loss: 0
+      },
+
+      hard: {
+        win: 200,
+        draw: 100,
+        loss: 0
+      }
+    }
+  },
+
+  /* =========================
+     PACK SETTINGS
+  ========================= */
+
+  packCosts: {
+    bronze: 50,
+    gold: 100,
+    icon: 1000
+  },
+
+  packSizes: {
+    bronze: 5,
+    gold: 5,
+    icon: 1
+  },
+
+  packOdds: {
+    bronze: {
+      icon: 4,
+      rare: 20,
+      common: 76
+    },
+
+    gold: {
+      icon: 10,
+      rare: 30,
+      common: 60
+    },
+
+    icon: {
+      icon: 100,
+      rare: 0,
+      common: 0
+    }
+  },
+
+  /* =========================
+     SUPER SQUAD DIFFICULTY
+  ========================= */
+
+  opponentRatingRanges: {
+    easy: [72, 84],
+    hard: [82, 95]
+  },
+
+  /* =========================
+     LEAGUES
+  ========================= */
+
+  leagues: {
+    premierLeague: "Premier League",
+    laLiga: "LaLiga"
+  },
+
+  premierLeagueClubs: [
+    "Arsenal",
+    "Aston Villa",
+    "Bournemouth",
+    "Brentford",
+    "Brighton",
+    "Chelsea",
+    "Crystal Palace",
+    "Everton",
+    "Fulham",
+    "Ipswich Town",
+    "Leicester City",
+    "Liverpool",
+    "Manchester City",
+    "Manchester United",
+    "Newcastle United",
+    "Nottingham Forest",
+    "Southampton",
+    "Tottenham Hotspur",
+    "West Ham United",
+    "Wolverhampton Wanderers"
+  ],
+
+  laLigaClubs: [
+    "Athletic Club",
+    "Atlético Madrid",
+    "Barcelona",
+    "Celta Vigo",
+    "Espanyol",
+    "Getafe",
+    "Girona",
+    "Las Palmas",
+    "Leganés",
+    "Mallorca",
+    "Osasuna",
+    "Rayo Vallecano",
+    "Real Betis",
+    "Real Madrid",
+    "Real Sociedad",
+    "Sevilla",
+    "Valencia",
+    "Valladolid",
+    "Villarreal"
+  ],
+
+  /* =========================
+     CLUB RATINGS
+  ========================= */
+
+  clubRatings: {
+    "Arsenal": 88,
+    "Aston Villa": 84,
+    "Bournemouth": 78,
+    "Brentford": 78,
+    "Brighton": 79,
+    "Chelsea": 84,
+    "Crystal Palace": 77,
+    "Everton": 76,
+    "Fulham": 78,
+    "Ipswich Town": 72,
+    "Leicester City": 74,
+    "Liverpool": 89,
+    "Manchester City": 91,
+    "Manchester United": 83,
+    "Newcastle United": 82,
+    "Nottingham Forest": 76,
+    "Southampton": 73,
+    "Tottenham Hotspur": 84,
+    "West Ham United": 79,
+    "Wolverhampton Wanderers": 76,
+
+    "Athletic Club": 81,
+    "Atlético Madrid": 87,
+    "Barcelona": 89,
+    "Celta Vigo": 76,
+    "Espanyol": 73,
+    "Getafe": 75,
+    "Girona": 80,
+    "Las Palmas": 73,
+    "Leganés": 72,
+    "Mallorca": 76,
+    "Osasuna": 76,
+    "Rayo Vallecano": 75,
+    "Real Betis": 80,
+    "Real Madrid": 92,
+    "Real Sociedad": 81,
+    "Sevilla": 78,
+    "Valencia": 77,
+    "Valladolid": 72,
+    "Villarreal": 81
+  },
+
+  /* =========================
+     ICONS
+  ========================= */
+
+  icons: [
+    {
+      id: "icon-pele",
+      name: "Pelé",
+      position: "FWD",
+      rating: 98,
+      club: "Icons",
+      rarity: "icon"
+    },
+    {
+      id: "icon-maradona",
+      name: "Diego Maradona",
+      position: "MID",
+      rating: 98,
+      club: "Icons",
+      rarity: "icon"
+    },
+    {
+      id: "icon-cruyff",
+      name: "Johan Cruyff",
+      position: "FWD",
+      rating: 97,
+      club: "Icons",
+      rarity: "icon"
+    },
+    {
+      id: "icon-beckenbauer",
+      name: "Franz Beckenbauer",
+      position: "DEF",
+      rating: 97,
+      club: "Icons",
+      rarity: "icon"
+    },
+    {
+      id: "icon-maldini",
+      name: "Paolo Maldini",
+      position: "DEF",
+      rating: 97,
+      club: "Icons",
+      rarity: "icon"
+    },
+    {
+      id: "icon-zidane",
+      name: "Zinedine Zidane",
+      position: "MID",
+      rating: 97,
+      club: "Icons",
+      rarity: "icon"
+    },
+    {
+      id: "icon-ronaldo",
+      name: "Ronaldo Nazário",
+      position: "FWD",
+      rating: 98,
+      club: "Icons",
+      rarity: "icon"
+    },
+    {
+      id: "icon-ronaldinho",
+      name: "Ronaldinho",
+      position: "FWD",
+      rating: 96,
+      club: "Icons",
+      rarity: "icon"
+    },
+    {
+      id: "icon-henry",
+      name: "Thierry Henry",
+      position: "FWD",
+      rating: 96,
+      club: "Icons",
+      rarity: "icon"
+    },
+    {
+      id: "icon-xavi",
+      name: "Xavi",
+      position: "MID",
+      rating: 96,
+      club: "Icons",
+      rarity: "icon"
+    },
+    {
+      id: "icon-iniesta",
+      name: "Andrés Iniesta",
+      position: "MID",
+      rating: 96,
+      club: "Icons",
+      rarity: "icon"
+    },
+    {
+      id: "icon-beckham",
+      name: "David Beckham",
+      position: "MID",
+      rating: 95,
+      club: "Icons",
+      rarity: "icon"
+    },
+    {
+      id: "icon-pirlo",
+      name: "Andrea Pirlo",
+      position: "MID",
+      rating: 95,
+      club: "Icons",
+      rarity: "icon"
+    },
+    {
+      id: "icon-roberto-carlos",
+      name: "Roberto Carlos",
+      position: "DEF",
+      rating: 96,
+      club: "Icons",
+      rarity: "icon"
+    },
+    {
+      id: "icon-cafu",
+      name: "Cafu",
+      position: "DEF",
+      rating: 95,
+      club: "Icons",
+      rarity: "icon"
+    },
+    {
+      id: "icon-buffon",
+      name: "Gianluigi Buffon",
+      position: "GK",
+      rating: 96,
+      club: "Icons",
+      rarity: "icon"
+    },
+    {
+      id: "icon-casillas",
+      name: "Iker Casillas",
+      position: "GK",
+      rating: 95,
+      club: "Icons",
+      rarity: "icon"
+    },
+    {
+      id: "icon-yashin",
+      name: "Lev Yashin",
+      position: "GK",
+      rating: 97,
+      club: "Icons",
+      rarity: "icon"
+    },
+    {
+      id: "icon-best",
+      name: "George Best",
+      position: "FWD",
+      rating: 96,
+      club: "Icons",
+      rarity: "icon"
+    },
+    {
+      id: "icon-eusebio",
+      name: "Eusébio",
+      position: "FWD",
+      rating: 97,
+      club: "Icons",
+      rarity: "icon"
+    },
+    {
+      id: "icon-van-basten",
+      name: "Marco van Basten",
+      position: "FWD",
+      rating: 96,
+      club: "Icons",
+      rarity: "icon"
+    },
+    {
+      id: "icon-gullit",
+      name: "Ruud Gullit",
+      position: "MID",
+      rating: 96,
+      club: "Icons",
+      rarity: "icon"
+    },
+    {
+      id: "icon-matthaus",
+      name: "Lothar Matthäus",
+      position: "MID",
+      rating: 96,
+      club: "Icons",
+      rarity: "icon"
+    },
+    {
+      id: "icon-vieira",
+      name: "Patrick Vieira",
+      position: "MID",
+      rating: 95,
+      club: "Icons",
+      rarity: "icon"
+    },
+    {
+      id: "icon-figo",
+      name: "Luís Figo",
+      position: "FWD",
+      rating: 95,
+      club: "Icons",
+      rarity: "icon"
+    },
+    {
+      id: "icon-kaka",
+      name: "Kaká",
+      position: "MID",
+      rating: 95,
+      club: "Icons",
+      rarity: "icon"
+    },
+    {
+      id: "icon-del-piero",
+      name: "Alessandro Del Piero",
+      position: "FWD",
+      rating: 95,
+      club: "Icons",
+      rarity: "icon"
+    },
+    {
+      id: "icon-baresi",
+      name: "Franco Baresi",
+      position: "DEF",
+      rating: 96,
+      club: "Icons",
+      rarity: "icon"
+    },
+    {
+      id: "icon-busquets",
+      name: "Sergio Busquets",
+      position: "MID",
+      rating: 95,
+      club: "Icons",
+      rarity: "icon"
+    },
+    {
+      id: "icon-etoo",
+      name: "Samuel Eto'o",
+      position: "FWD",
+      rating: 95,
+      club: "Icons",
+      rarity: "icon"
+    }
+  ],
+
+  /* =========================
+     SAVE DATA
+  ========================= */
+
+  storageKeys: {
+    buildRoster: "buildRoster_gameState",
+    superSquad: "superSquad_gameState"
+  },
+
+  /* =========================
+     API SETTINGS
+  =========================
+     
+     The game does NOT require an API key
+     because playerData.js contains fallback data.
+  ========================= */
+
+  api: {
+    enabled: false,
+    key: "",
+    baseUrl: "https://v3.football.api-sports.io"
+  }
+};
+
+/*
+ * Build the combined club list once config.js loads.
+ */
+window.GAME_CONFIG.clubs =
+  window.GAME_CONFIG.premierLeagueClubs.concat(
+    window.GAME_CONFIG.laLigaClubs
+  );
+
+/*
+ * Safety check.
+ */
+if (
+  !window.GAME_CONFIG ||
+  !Array.isArray(window.GAME_CONFIG.clubs)
+) {
+  console.error("Super League Soccer: configuration failed to load.");
+} else {
+  console.info(
+    "Super League Soccer config loaded successfully."
+  );
+}
+```
